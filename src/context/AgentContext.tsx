@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-undef */
-import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useState, ReactNode } from 'react';
 import { useLiveKit } from '../hooks/useLiveKit';
 import { Message, InputMode, DataChannelMessage, ConnectionState } from '../types/message.types';
 import { ERROR_MESSAGES, CHAT_CONFIG } from '../utils/constants';
@@ -137,10 +137,27 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [state, dispatch] = useReducer(agentReducer, initialState);
   const liveKit = useLiveKit();
 
+  // Development mode: simulate connection for testing
+  const [isDevMode, setIsDevMode] = useState(__DEV__);
+  const [mockConnected, setMockConnected] = useState(false);
+
   // Connect to agent
   const connect = useCallback(async (token: string) => {
     try {
       dispatch({ type: 'SET_ERROR', payload: null });
+
+      // Development mode: simulate connection
+      if (__DEV__ && !token) {
+        console.log('🔧 Development Mode: Simulating LiveKit connection');
+        // Simulate connection delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setMockConnected(true);
+        dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
+        dispatch({ type: 'SET_AGENT_STATUS', payload: 'idle' });
+        return;
+      }
+
+      // Production mode: real LiveKit connection
       await liveKit.connect(token);
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: true });
       dispatch({ type: 'SET_AGENT_STATUS', payload: 'idle' });
@@ -154,13 +171,23 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Disconnect from agent
   const disconnect = useCallback(async () => {
     try {
+      // Handle mock disconnection in development mode
+      if (__DEV__ && mockConnected) {
+        console.log('🔧 Development Mode: Simulating disconnection');
+        setMockConnected(false);
+        dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
+        dispatch({ type: 'SET_AGENT_STATUS', payload: 'idle' });
+        return;
+      }
+
+      // Production mode: real disconnection
       await liveKit.disconnect();
       dispatch({ type: 'SET_CONNECTION_STATUS', payload: false });
       dispatch({ type: 'SET_AGENT_STATUS', payload: 'idle' });
     } catch (error) {
       console.error('Disconnect error:', error);
     }
-  }, [liveKit]);
+  }, [liveKit, mockConnected]);
 
   // Send text message
   const sendMessage = useCallback(async (content: string, type: Message['type'] = 'text') => {
@@ -297,22 +324,46 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Monitor LiveKit connection state
   React.useEffect(() => {
+    // In development mode with mock connection, don't update from liveKit
+    if (__DEV__ && mockConnected) {
+      return;
+    }
     dispatch({ type: 'SET_CONNECTION_STATUS', payload: liveKit.isConnected() });
-  }, [liveKit.isConnected()]);
+  }, [liveKit.isConnected(), mockConnected]);
 
   // Handle LiveKit errors
   React.useEffect(() => {
+    // In development mode with mock connection, don't show liveKit errors
+    if (__DEV__ && mockConnected) {
+      return;
+    }
     if (liveKit.error) {
       const errorMessage = liveKit.error.message || ERROR_MESSAGES.generic;
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
     }
-  }, [liveKit.error]);
+  }, [liveKit.error, mockConnected]);
+
+  // Auto-connect in development mode for testing
+  React.useEffect(() => {
+    if (__DEV__ && !mockConnected && !state.isConnected) {
+      console.log('🔧 Development Mode: Auto-connecting for testing...');
+      connect(''); // Empty token for mock connection
+    }
+  }, [mockConnected, state.isConnected, connect]);
+
+  // Determine connection state for context
+  const getConnectionState = (): ConnectionState => {
+    if (__DEV__ && mockConnected) {
+      return 'CONNECTED';
+    }
+    return liveKit.connectionState;
+  };
 
   const contextValue: AgentContextType = {
     ...state,
     connect,
     disconnect,
-    connectionState: liveKit.connectionState,
+    connectionState: getConnectionState(),
     sendMessage,
     sendImage,
     setInputMode,

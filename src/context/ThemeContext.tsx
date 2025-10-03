@@ -3,7 +3,13 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Theme } from '../theme';
 
 interface ThemeContextType {
-  theme: any; // Using any to avoid strict typing issues with dynamic theme switching
+  theme: {
+    colors: any;
+    typography: any;
+    spacing: any;
+    borderRadius: any;
+    iconSizes: any;
+  };
   isDark: boolean;
   toggleTheme: () => void;
 }

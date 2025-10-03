@@ -1,91 +1,110 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Alert,
+  Dimensions,
+  PanResponder,
+} from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAgent } from '../../context/AgentContext';
-import { audioService, AudioLevel } from '../../services/AudioService';
-import { VoiceControlsProps } from '../../types/message.types';
+import { useVoice } from '../../hooks/useVoice';
+import VoiceWaveform from './VoiceWaveform';
+
+const { width: screenWidth } = Dimensions.get('window');
+
+interface VoiceControlsProps {
+  mode?: 'push-to-talk' | 'continuous';
+  onModeChange?: (mode: 'push-to-talk' | 'continuous') => void;
+  showModeSelector?: boolean;
+  compact?: boolean;
+}
 
 const VoiceControls: React.FC<VoiceControlsProps> = ({
-  mode,
-  isRecording,
-  isMuted,
-  onToggleMute,
-  onToggleRecording,
+  mode = 'push-to-talk',
   onModeChange,
+  showModeSelector = true,
+  compact = false,
 }) => {
   const { theme } = useTheme();
   const { isConnected, agentStatus } = useAgent();
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [recordingDuration, setRecordingDuration] = useState(0);
+  const voice = useVoice();
+  const [isPressing, setIsPressing] = useState(false);
+  const [pressStartTime, setPressStartTime] = useState(0);
 
-  // Update audio levels
+  // Update voice mode when prop changes
   useEffect(() => {
-    const handleAudioLevel = (level: AudioLevel) => {
-      setAudioLevel(level.level);
-    };
-
-    audioService.onAudioLevel(handleAudioLevel);
-
-    return () => {
-      audioService.offAudioLevel();
-    };
-  }, []);
-
-  // Update recording duration
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-
-    if (isRecording) {
-      interval = setInterval(() => {
-        setRecordingDuration(audioService.getRecordingDuration());
-      }, 100);
-    } else {
-      setRecordingDuration(0);
+    if (voice.voiceMode !== mode) {
+      voice.setVoiceMode(mode);
     }
+  }, [mode, voice]);
 
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRecording]);
+  // Pan responder for push-to-talk functionality
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => mode === 'push-to-talk',
+    onMoveShouldSetPanResponder: () => false,
 
-  // Handle recording toggle
-  const handleToggleRecording = useCallback(async () => {
-    try {
-      if (!isConnected) {
-        Alert.alert('Not Connected', 'Please connect to BakeBot before using voice features.');
-        return;
+    onPanResponderGrant: () => {
+      if (mode === 'push-to-talk' && !voice.isRecording) {
+        setIsPressing(true);
+        setPressStartTime(Date.now());
+        voice.startRecording();
       }
+    },
 
-      if (isRecording) {
-        // Stop recording
-        const recordingData = await audioService.stopRecording();
-        if (recordingData) {
-          console.log('Recording completed:', recordingData);
-          // Here you would process the recording data
-          // For now, just log it
+    onPanResponderRelease: () => {
+      if (mode === 'push-to-talk' && voice.isRecording) {
+        const pressDuration = Date.now() - pressStartTime;
+
+        // If pressed for less than 300ms, treat as accidental press
+        if (pressDuration < 300) {
+          voice.stopRecording();
+          setIsPressing(false);
+          return;
         }
-        onToggleRecording();
-      } else {
-        // Start recording
-        await audioService.startRecording();
-        onToggleRecording();
+
+        setIsPressing(false);
+        voice.stopRecording();
       }
-    } catch (error) {
-      console.error('Recording error:', error);
-      Alert.alert('Recording Error', 'Failed to toggle recording. Please check microphone permissions.');
+    },
+
+    onPanResponderTerminate: () => {
+      if (mode === 'push-to-talk' && voice.isRecording) {
+        setIsPressing(false);
+        voice.stopRecording();
+      }
+    },
+  });
+
+  const handleContinuousToggle = async () => {
+    if (mode === 'continuous') {
+      if (voice.isRecording) {
+        await voice.stopRecording();
+      } else {
+        await voice.startRecording();
+      }
     }
-  }, [isRecording, isConnected, onToggleRecording]);
+  };
 
-  // Handle mute toggle
-  const handleToggleMute = useCallback(() => {
-    audioService.setMuted(!isMuted);
-    onToggleMute();
-  }, [isMuted, onToggleMute]);
+  const handleMuteToggle = () => {
+    voice.toggleMute();
+  };
 
-  // Handle mode change
-  const handleModeChange = useCallback((newMode: 'push-to-talk' | 'continuous') => {
-    onModeChange(newMode);
-  }, [onModeChange]);
+  const handleModeChange = (newMode: 'push-to-talk' | 'continuous') => {
+    if (voice.isRecording) {
+      Alert.alert(
+        'Recording in Progress',
+        'Please stop recording before switching modes.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
+
+    voice.setVoiceMode(newMode);
+    onModeChange?.(newMode);
+  };
 
   // Format recording duration
   const formatDuration = (ms: number): string => {
@@ -97,79 +116,104 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 
   // Get record button color based on state
   const getRecordButtonColor = (): string => {
-    if (!isConnected) return theme.colors.textMuted;
-    if (isRecording) return theme.colors.error;
-    if (audioLevel > 0.1) return theme.colors.voiceActive;
-    return theme.colors.voiceInactive;
+    if (!isConnected) return (theme.colors as any).textMuted || '#64748b';
+    if (voice.isRecording) return isPressing ? (theme.colors as any).error || '#ef4444' : (theme.colors as any).warning || '#f59e0b';
+    if (voice.audioLevel > 0.1) return (theme.colors as any).voiceActive || '#22c55e';
+    return (theme.colors as any).primary || '#2563eb';
   };
 
   // Get record button size based on audio level
   const getRecordButtonSize = (): number => {
-    if (!isRecording) return 64;
+    const baseSize = compact ? 60 : 80;
+    if (!voice.isRecording) return baseSize;
     // Pulse effect based on audio level
-    const baseSize = 64;
-    const scale = 1 + (audioLevel * 0.2); // Up to 20% larger
+    const scale = 1 + (voice.audioLevel * 0.15); // Up to 15% larger
     return baseSize * scale;
   };
 
+  const buttonText = voice.isRecording
+    ? (mode === 'push-to-talk' ? 'Release' : 'Stop')
+    : (mode === 'push-to-talk' ? 'Press & Hold' : 'Start');
+
+  const colors = theme.colors as any;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background || '#ffffff' }]}>
+
       {/* Mode Selector */}
-      <View style={[styles.modeSelector, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.modeButton,
-            mode === 'push-to-talk' && {
-              backgroundColor: theme.colors.primary,
-              borderColor: theme.colors.primary,
-            },
-            mode !== 'push-to-talk' && {
-              backgroundColor: theme.colors.backgroundSecondary,
-              borderColor: theme.colors.border,
-            },
-          ]}
-          onPress={() => handleModeChange('push-to-talk')}
-        >
-          <Text
+      {showModeSelector && !compact && (
+        <View style={[styles.modeSelector, { borderBottomColor: colors.border || '#e2e8f0' }]}>
+          <TouchableOpacity
             style={[
-              styles.modeButtonText,
-              {
-                color: mode === 'push-to-talk' ? 'white' : theme.colors.text,
+              styles.modeButton,
+              voice.voiceMode === 'push-to-talk' && {
+                backgroundColor: colors.primary || '#2563eb',
+                borderColor: colors.primary || '#2563eb',
+              },
+              voice.voiceMode !== 'push-to-talk' && {
+                backgroundColor: colors.backgroundSecondary || '#f8fafc',
+                borderColor: colors.border || '#e2e8f0',
               },
             ]}
+            onPress={() => handleModeChange('push-to-talk')}
           >
-            Push to Talk
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.modeButtonText,
+                {
+                  color: voice.voiceMode === 'push-to-talk' ? 'white' : colors.text || '#1e293b',
+                },
+              ]}
+            >
+              Push to Talk
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.modeButton,
-            mode === 'continuous' && {
-              backgroundColor: theme.colors.primary,
-              borderColor: theme.colors.primary,
-            },
-            mode !== 'continuous' && {
-              backgroundColor: theme.colors.backgroundSecondary,
-              borderColor: theme.colors.border,
-            },
-          ]}
-          onPress={() => handleModeChange('continuous')}
-        >
-          <Text
+          <TouchableOpacity
             style={[
-              styles.modeButtonText,
-              {
-                color: mode === 'continuous' ? 'white' : theme.colors.text,
+              styles.modeButton,
+              voice.voiceMode === 'continuous' && {
+                backgroundColor: colors.primary || '#2563eb',
+                borderColor: colors.primary || '#2563eb',
+              },
+              voice.voiceMode !== 'continuous' && {
+                backgroundColor: colors.backgroundSecondary || '#f8fafc',
+                borderColor: colors.border || '#e2e8f0',
               },
             ]}
+            onPress={() => handleModeChange('continuous')}
           >
-            Continuous
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={[
+                styles.modeButtonText,
+                {
+                  color: voice.voiceMode === 'continuous' ? 'white' : colors.text || '#1e293b',
+                },
+              ]}
+            >
+              Continuous
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* Voice Controls */}
+      {/* Voice Waveform */}
+      {voice.isRecording && (
+        <VoiceWaveform
+          audioLevel={voice.audioLevel}
+          isActive={voice.isRecording}
+          color={getRecordButtonColor()}
+        />
+      )}
+
+      {/* Recording Duration */}
+      {voice.isRecording && !compact && (
+        <Text style={[styles.duration, { color: colors.textSecondary || '#64748b' }]}>
+          {formatDuration(voice.recordingDuration)}
+        </Text>
+      )}
+
+      {/* Main Controls */}
       <View style={styles.controlsContainer}>
         {/* Mute Button */}
         <TouchableOpacity
@@ -177,18 +221,18 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
             styles.controlButton,
             styles.muteButton,
             {
-              backgroundColor: isMuted ? theme.colors.error : theme.colors.backgroundSecondary,
-              borderColor: theme.colors.border,
+              backgroundColor: voice.isMuted ? colors.error || '#ef4444' : colors.backgroundSecondary || '#f8fafc',
+              borderColor: colors.border || '#e2e8f0',
             },
           ]}
-          onPress={handleToggleMute}
+          onPress={handleMuteToggle}
           disabled={!isConnected}
         >
-          <Text style={[styles.controlIcon, { color: isMuted ? 'white' : theme.colors.text }]}>
-            {isMuted ? '🔇' : '🎤'}
+          <Text style={[styles.controlIcon, { color: voice.isMuted ? 'white' : colors.text || '#1e293b' }]}>
+            {voice.isMuted ? '🔇' : '🎤'}
           </Text>
-          <Text style={[styles.controlLabel, { color: isMuted ? 'white' : theme.colors.textSecondary }]}>
-            {isMuted ? 'Unmute' : 'Mute'}
+          <Text style={[styles.controlLabel, { color: voice.isMuted ? 'white' : colors.textSecondary || '#64748b' }]}>
+            {voice.isMuted ? 'Unmute' : 'Mute'}
           </Text>
         </TouchableOpacity>
 
@@ -201,19 +245,24 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
               height: getRecordButtonSize(),
               borderRadius: getRecordButtonSize() / 2,
               backgroundColor: getRecordButtonColor(),
+              transform: [{ scale: isPressing ? 0.95 : 1 }],
             },
           ]}
-          onPress={handleToggleRecording}
+          onPress={mode === 'continuous' ? handleContinuousToggle : undefined}
+          {...(mode === 'push-to-talk' ? panResponder.panHandlers : {})}
           disabled={!isConnected}
-          activeOpacity={0.8}
+          activeOpacity={mode === 'continuous' ? 0.8 : 1}
         >
           <View style={styles.recordButtonContent}>
-            <Text style={[styles.recordIcon, { fontSize: isRecording ? 24 : 28 }]}>
-              {isRecording ? '⏹️' : '🎙️'}
+            <Text style={[styles.recordIcon, {
+              fontSize: compact ? 16 : voice.isRecording ? 24 : 28,
+              color: colors.background || '#ffffff'
+            }]}>
+              {buttonText}
             </Text>
-            {isRecording && (
-              <Text style={[styles.recordingTime, { color: 'white' }]}>
-                {formatDuration(recordingDuration)}
+            {voice.isRecording && !compact && (
+              <Text style={[styles.recordingTime, { color: colors.background || '#ffffff' }]}>
+                {formatDuration(voice.recordingDuration)}
               </Text>
             )}
           </View>
@@ -221,28 +270,26 @@ const VoiceControls: React.FC<VoiceControlsProps> = ({
 
         {/* Status Indicator */}
         <View style={[styles.statusContainer]}>
-          <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.statusText, { color: colors.textSecondary || '#64748b' }]}>
             {agentStatus === 'listening' && '👂 Listening...'}
             {agentStatus === 'processing' && '🤔 Processing...'}
             {agentStatus === 'speaking' && '🔊 Speaking...'}
             {agentStatus === 'idle' && !isConnected && '🔴 Disconnected'}
             {agentStatus === 'idle' && isConnected && '🟢 Ready'}
           </Text>
-          {isRecording && (
-            <View style={[styles.recordingIndicator, { backgroundColor: theme.colors.error }]} />
+          {voice.isRecording && (
+            <View style={[styles.recordingIndicator, { backgroundColor: colors.error || '#ef4444' }]} />
           )}
         </View>
       </View>
 
       {/* Instructions */}
-      {mode === 'push-to-talk' && (
-        <Text style={[styles.instructions, { color: theme.colors.textMuted }]}>
-          Hold the record button to speak, release to send
-        </Text>
-      )}
-      {mode === 'continuous' && (
-        <Text style={[styles.instructions, { color: theme.colors.textMuted }]}>
-          Tap record to start/stop continuous recording
+      {!compact && (
+        <Text style={[styles.instructions, { color: colors.textMuted || '#94a3b8' }]}>
+          {voice.voiceMode === 'push-to-talk'
+            ? 'Press and hold the record button to speak, release to send'
+            : 'Tap the record button to start/stop continuous recording'
+          }
         </Text>
       )}
     </View>
@@ -272,6 +319,12 @@ const styles = StyleSheet.create({
   modeButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  duration: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   controlsContainer: {
     flexDirection: 'row',
@@ -315,7 +368,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   recordIcon: {
-    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
   recordingTime: {
     fontSize: 12,

@@ -104,7 +104,11 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
       // Random micro-variations for more natural effect
       bars.forEach((bar, index) => {
         const randomVariation = Math.random() * 4;
-        const currentHeight = bar.height._value || 4;
+        // Use addListener to get current value safely
+        let currentHeight = 4;
+        bar.height.addListener(({ value }) => {
+          currentHeight = value;
+        });
         const newHeight = Math.max(4, Math.min(32, currentHeight + randomVariation - 2));
 
         Animated.timing(bar.height, {
@@ -118,7 +122,8 @@ const VoiceWaveform: React.FC<VoiceWaveformProps> = ({
     return () => clearInterval(interval);
   }, [isActive, bars]);
 
-  const barColor = color || (isActive ? theme.colors.voiceActive : theme.colors.voiceInactive);
+  const colors = theme.colors as any;
+  const barColor = color || (isActive ? colors.voiceActive || '#22c55e' : colors.voiceInactive || '#64748b');
 
   return (
     <View style={[styles.container, { opacity: isActive ? 1 : 0.6 }]}>
