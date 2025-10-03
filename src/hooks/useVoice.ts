@@ -1,9 +1,10 @@
+/* eslint-disable no-undef */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
-import { Room } from '@livekit/react-native';
-import { audioService, AudioRecordingData } from '../services/AudioService';
+import { Room } from 'livekit-client';
+import { audioService } from '../services/AudioService';
 import { useAgent } from '../context/AgentContext';
-import { LIVEKIT_CONFIG, ERROR_MESSAGES } from '../utils/constants';
+import { ERROR_MESSAGES } from '../utils/constants';
 
 export interface UseVoiceReturn {
   // Recording state
@@ -28,7 +29,7 @@ export interface UseVoiceReturn {
 }
 
 export const useVoice = (): UseVoiceReturn => {
-  const { isConnected, connect, disconnect, sendMessage } = useAgent();
+  const { isConnected, sendMessage } = useAgent();
   const [isRecording, setIsRecording] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -195,7 +196,7 @@ export const useVoice = (): UseVoiceReturn => {
   }, [isRecording, voiceMode, stopRecording]);
 
   // Handle push-to-talk (press and hold)
-  const startPushToTalk = useCallback(async (): Promise<void> => {
+  /*const startPushToTalk = useCallback(async (): Promise<void> => {
     if (voiceMode !== 'push-to-talk') return;
     await startRecording();
   }, [voiceMode, startRecording]);
@@ -203,7 +204,7 @@ export const useVoice = (): UseVoiceReturn => {
   const stopPushToTalk = useCallback(async (): Promise<void> => {
     if (voiceMode !== 'push-to-talk') return;
     await stopRecording();
-  }, [voiceMode, stopRecording]);
+  }, [voiceMode, stopRecording]);*/
 
   // Auto-cleanup on unmount
   useEffect(() => {

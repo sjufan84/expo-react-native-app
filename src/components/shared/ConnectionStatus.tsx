@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { ConnectionState } from '../../types/message.types';
 import { useAgent } from '../../context/AgentContext';
 
 interface ConnectionStatusProps {
@@ -14,7 +13,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   onRetry
 }) => {
   const { theme } = useTheme();
-  const { connectionState, error, connect, disconnect } = useAgent();
+  const { connectionState, error } = useAgent();
   const [fadeAnim] = useState(new Animated.Value(0));
   const [showStatus, setShowStatus] = useState(false);
 

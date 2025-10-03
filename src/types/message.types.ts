@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface Message {
   id: string;
   sender: 'user' | 'agent';
@@ -63,14 +64,6 @@ export type ConnectionState =
   | 'RECONNECTING'
   | 'FAILED';
 
-export interface UseLiveKitReturn {
-  room: Room | null;
-  connectionState: ConnectionState;
-  error: Error | null;
-  connect: (token: string) => Promise<void>;
-  disconnect: () => Promise<void>;
-}
-
 export interface AudioData {
   uri: string;
   duration: number;
@@ -91,42 +84,4 @@ export interface ImageResult {
   height: number;
   fileSize: number;
   type: string;
-}
-
-// Room and Participant types for LiveKit (simplified)
-export interface Room {
-  name: string;
-  participants: Map<string, Participant>;
-  localParticipant: LocalParticipant;
-  on: (event: string, handler: (...args: any[]) => void) => void;
-  off: (event: string, handler: (...args: any[]) => void) => void;
-  disconnect: () => Promise<void>;
-}
-
-export interface Participant {
-  sid: string;
-  identity: string;
-  tracks: Map<string, Track>;
-  on: (event: string, handler: (...args: any[]) => void) => void;
-  off: (event: string, handler: (...args: any[]) => void) => void;
-}
-
-export interface LocalParticipant extends Participant {
-  publishAudioTrack: (track: LocalAudioTrack) => Promise<void>;
-  publishData: (data: Uint8Array, kind: DataPacket_Kind) => Promise<void>;
-}
-
-export interface Track {
-  sid: string;
-  kind: 'audio' | 'video' | 'data';
-  mediaStreamTrack?: any; // MediaStreamTrack is not available in React Native
-}
-
-export interface LocalAudioTrack extends Track {
-  kind: 'audio';
-}
-
-export enum DataPacket_Kind {
-  RELIABLE = 'reliable',
-  LOSSY = 'lossy'
 }

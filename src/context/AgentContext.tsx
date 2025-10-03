@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-undef */
 import React, { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
 import { useLiveKit } from '../hooks/useLiveKit';
-import { Message, InputMode, DataChannelMessage } from '../types/message.types';
+import { Message, InputMode, DataChannelMessage, ConnectionState } from '../types/message.types';
 import { ERROR_MESSAGES, CHAT_CONFIG } from '../utils/constants';
 import { generateMessageId, validateMessage } from '../utils/formatters';
-import { LIVEKIT_CONFIG } from '../utils/constants';
+// import { LIVEKIT_CONFIG } from '../utils/constants';
 
 // Agent state interface
 interface AgentState {
@@ -109,6 +111,7 @@ interface AgentContextType extends AgentState {
   connect: (token: string) => Promise<void>;
   disconnect: () => Promise<void>;
 
+
   // Message methods
   sendMessage: (content: string, type: Message['type']) => Promise<void>;
   sendImage: (imageUri: string, metadata?: any) => Promise<void>;
@@ -121,6 +124,9 @@ interface AgentContextType extends AgentState {
   // Voice methods (placeholder for now)
   startVoiceRecording: () => Promise<void>;
   stopVoiceRecording: () => Promise<void>;
+
+  // Connection Status
+  connectionState: ConnectionState;
 }
 
 // Create context
@@ -306,6 +312,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     ...state,
     connect,
     disconnect,
+    connectionState: liveKit.connectionState,
     sendMessage,
     sendImage,
     setInputMode,

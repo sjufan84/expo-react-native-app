@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { AgentProvider } from './src/context/AgentContext';
 import ChatScreen from './src/screens/ChatScreen';
@@ -11,9 +12,10 @@ const Stack = createStackNavigator();
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AgentProvider>
-        <NavigationContainer>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AgentProvider>
+          <NavigationContainer>
           <StatusBar style="auto" />
           <Stack.Navigator
             initialRouteName="Chat"
@@ -49,9 +51,10 @@ const App: React.FC = () => {
               }}
             />
           </Stack.Navigator>
-        </NavigationContainer>
-      </AgentProvider>
-    </ThemeProvider>
+          </NavigationContainer>
+        </AgentProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 };
 

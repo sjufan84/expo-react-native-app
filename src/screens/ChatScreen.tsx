@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { Message } from '../types/message.types';
@@ -16,6 +17,7 @@ import { Message } from '../types/message.types';
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -71,7 +73,7 @@ const ChatScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.inputContainer, { borderTopColor: theme.colors.border }]}
       >
-        <View style={[styles.inputRow, { backgroundColor: theme.colors.backgroundSecondary }]}>
+        <View style={[styles.inputRow, { backgroundColor: theme.colors.backgroundSecondary, paddingTop: 16, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <TouchableOpacity style={styles.attachButton}>
             <Text style={styles.attachIcon}>📷</Text>
           </TouchableOpacity>

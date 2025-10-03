@@ -1,4 +1,13 @@
-import { Room, RoomEvent, Track, RemoteParticipant, LocalParticipant, ConnectionState } from '@livekit/react-native';
+/* eslint-disable no-undef */
+import { 
+  Room, 
+  RoomEvent, 
+  RemoteParticipant, 
+  LocalParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
+  Participant
+} from 'livekit-client';
 import { ConnectionState as AppConnectionState } from '../types/message.types';
 import { LIVEKIT_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 
@@ -24,7 +33,6 @@ export class LiveKitService {
       this.room = new Room({
         adaptiveStream: true,
         dynacast: true,
-        autoSubscribe: true,
       });
 
       // Set up event listeners
@@ -87,30 +95,32 @@ export class LiveKitService {
   getConnectionState(): AppConnectionState {
     if (!this.room) return 'DISCONNECTED';
 
-    switch (this.room.state) {
-      case ConnectionState.Connected:
-        return 'CONNECTED';
-      case ConnectionState.Connecting:
-        return 'CONNECTING';
-      case ConnectionState.Reconnecting:
-        return 'RECONNECTING';
-      case ConnectionState.Disconnected:
-        return 'DISCONNECTED';
-      default:
-        return 'FAILED';
+    // Use string comparison instead of enum to avoid runtime errors
+    const state = String(this.room.state).toLowerCase();
+    
+    if (state.includes('connect') && !state.includes('disconnect') && !state.includes('reconnect')) {
+      return 'CONNECTED';
+    } else if (state.includes('connecting')) {
+      return 'CONNECTING';
+    } else if (state.includes('reconnect')) {
+      return 'RECONNECTING';
+    } else if (state.includes('disconnect')) {
+      return 'DISCONNECTED';
+    } else {
+      return 'FAILED';
     }
   }
 
   /**
    * Publish audio track to the room
    */
-  async publishAudioTrack(track: Track): Promise<void> {
+  async publishAudioTrack(): Promise<void> {
     if (!this.room) {
       throw new Error('Not connected to a room');
     }
 
     try {
-      await this.room.localParticipant.publishTrack(track);
+      await this.room.localParticipant.setMicrophoneEnabled(true);
       console.log('Audio track published successfully');
     } catch (error) {
       console.error('Failed to publish audio track:', error);
@@ -127,12 +137,13 @@ export class LiveKitService {
       return;
     }
 
-    const participant = this.room.participants.get(participantSid);
+    const participant = this.room.remoteParticipants.get(participantSid);
     if (participant && participant instanceof RemoteParticipant) {
       // Subscribe to all tracks
-      participant.tracks.forEach((publication) => {
+      participant.trackPublications.forEach((publication) => {
         if (!publication.isSubscribed && publication.track) {
-          participant.subscribeToTrack(publication.track);
+          // Auto-subscription is handled by LiveKit
+          console.log('Track available:', publication.trackSid);
         }
       });
       console.log('Subscribed to participant:', participantSid);
@@ -142,13 +153,13 @@ export class LiveKitService {
   /**
    * Send data message through the room
    */
-  async sendData(data: Uint8Array, kind: 'reliable' | 'lossy' = 'reliable'): Promise<void> {
+  async sendData(data: Uint8Array, reliable: boolean = true): Promise<void> {
     if (!this.room) {
       throw new Error('Not connected to a room');
     }
 
     try {
-      await this.room.localParticipant.publishData(data, kind);
+      await this.room.localParticipant.publishData(data, { reliable });
       console.log('Data sent successfully');
     } catch (error) {
       console.error('Failed to send data:', error);
@@ -175,14 +186,16 @@ export class LiveKitService {
    */
   getParticipants(): Map<string, RemoteParticipant> {
     if (!this.room) return new Map();
-    return this.room.participants;
+    return this.room.remoteParticipants;
   }
 
   /**
    * Check if connected to a room
    */
   isConnected(): boolean {
-    return this.room?.state === ConnectionState.Connected;
+    if (!this.room) return false;
+    const state = String(this.room.state).toLowerCase();
+    return state.includes('connect') && !state.includes('disconnect') && !state.includes('reconnect');
   }
 
   /**
@@ -213,24 +226,24 @@ export class LiveKitService {
       this.reconnectAttempts = 0;
     });
 
-    this.room.on(RoomEvent.ParticipantConnected, (participant) => {
+    this.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       console.log('Participant connected:', participant.identity);
     });
 
-    this.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    this.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       console.log('Participant disconnected:', participant.identity);
     });
 
-    this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+    this.room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       console.log('Track subscribed:', track.kind, 'from', participant.identity);
     });
 
-    this.room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+    this.room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       console.log('Track unsubscribed:', track.kind, 'from', participant.identity);
     });
 
-    this.room.on(RoomEvent.DataReceived, (payload, participant) => {
-      console.log('Data received from', participant.identity);
+    this.room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant: Participant | undefined) => {
+      console.log('Data received from', participant?.identity);
     });
   }
 

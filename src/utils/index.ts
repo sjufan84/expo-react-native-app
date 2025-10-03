@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { Platform } from 'react-native';
 
 // Platform-specific utilities
@@ -18,14 +19,12 @@ export const debounce = <T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): ((...args: Parameters<T>) => void) => {
-  let timeout: any;
+  let timeout: ReturnType<typeof global.setTimeout>;
   return (...args: Parameters<T>) => {
     if (timeout) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      clearTimeout(timeout);
+      global.clearTimeout(timeout);
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    timeout = setTimeout(() => func(...args), wait);
+    timeout = global.setTimeout(() => func(...args), wait);
   };
 };
 

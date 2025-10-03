@@ -1,16 +1,27 @@
+/* eslint-disable no-undef */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Platform, Alert, Linking } from 'react-native';
-import { Room, RemoteParticipant, Track } from '@livekit/react-native';
+import { Alert } from 'react-native';
+import { Room, RemoteParticipant } from 'livekit-client';
 import {
-  UseLiveKitReturn,
   ConnectionState,
   DataChannelMessage,
-  Room as RoomType
 } from '../types/message.types';
 import { liveKitService } from '../services/LiveKitService';
 import PermissionService from '../services/PermissionService';
-import { LIVEKIT_CONFIG, ERROR_MESSAGES, PERMISSIONS } from '../utils/constants';
+import { LIVEKIT_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 import { validateConnectionState } from '../utils/validators';
+
+export interface UseLiveKitReturn {
+  room: Room | null;
+  connectionState: ConnectionState;
+  error: Error | null;
+  connect: (token: string) => Promise<void>;
+  disconnect: () => Promise<void>;
+  sendData: (message: DataChannelMessage) => Promise<void>;
+  subscribeToParticipant: (participantSid: string) => void;
+  getParticipants: () => Map<string, RemoteParticipant>;
+  isConnected: () => boolean;
+}
 
 export const useLiveKit = (): UseLiveKitReturn => {
   const [room, setRoom] = useState<Room | null>(null);
@@ -98,7 +109,7 @@ export const useLiveKit = (): UseLiveKitReturn => {
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(data);
 
-      await liveKitService.sendData(uint8Array, 'reliable');
+      await liveKitService.sendData(uint8Array, true);
       console.log('Data message sent:', message.type);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to send data');

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { Platform, Alert, Linking, PermissionsAndroid } from 'react-native';
 import { PERMISSIONS, ERROR_MESSAGES } from '../utils/constants';
 
@@ -12,7 +13,9 @@ export class PermissionService {
       if (Platform.OS === 'android') {
         const androidPermission = this.getAndroidPermission(permission);
         if (androidPermission) {
-          const status = await PermissionsAndroid.check(androidPermission);
+          const status = await PermissionsAndroid.check(
+            androidPermission as typeof PermissionsAndroid.PERMISSIONS[keyof typeof PermissionsAndroid.PERMISSIONS]
+          );
           return status;
         }
       }
@@ -35,7 +38,7 @@ export class PermissionService {
       if (Platform.OS === 'android') {
         const androidPermission = this.getAndroidPermission(permission);
         if (androidPermission) {
-          const result = await PermissionsAndroid.request(androidPermission, {
+          const result = await PermissionsAndroid.request(androidPermission as typeof PermissionsAndroid.PERMISSIONS[keyof typeof PermissionsAndroid.PERMISSIONS], {
             title: this.getPermissionTitle(permission),
             message: this.getPermissionMessage(permission),
             buttonPositive: 'Allow',
@@ -57,7 +60,7 @@ export class PermissionService {
    * Show permission denied alert with option to open settings
    */
   static showPermissionDeniedAlert(permission: PermissionType): void {
-    const permissionName = this.getPermissionDisplayName(permission);
+    // const permissionName = this.getPermissionDisplayName(permission);
     const errorMessage = this.getPermissionErrorMessage(permission);
 
     Alert.alert(
@@ -85,7 +88,7 @@ export class PermissionService {
    */
   static showPermissionRationale(permission: PermissionType): Promise<boolean> {
     return new Promise((resolve) => {
-      const permissionName = this.getPermissionDisplayName(permission);
+      // const permissionName = this.getPermissionDisplayName(permission);
       const rationaleMessage = this.getPermissionRationaleMessage(permission);
 
       Alert.alert(

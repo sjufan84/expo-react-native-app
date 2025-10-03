@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
-import { Room, LocalParticipant, Track, LocalAudioTrack } from '@livekit/react-native';
+/* eslint-disable no-undef */
+import { Room, LocalAudioTrack } from 'livekit-client';
 import { AUDIO_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 
 export interface AudioLevel {
@@ -32,25 +32,17 @@ export class AudioService {
   /**
    * Create and configure local audio track
    */
-  async createLocalAudioTrack(): Promise<LocalAudioTrack> {
+  async createLocalAudioTrack(): Promise<LocalAudioTrack | null> {
     try {
       if (this.audioTrack) {
         console.warn('Audio track already exists');
         return this.audioTrack;
       }
 
-      // Create audio track with specified configuration
-      const audioTrack = await LocalAudioTrack.create({
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: AUDIO_CONFIG.sampleRate,
-        channelCount: AUDIO_CONFIG.channels,
-      });
-
-      this.audioTrack = audioTrack;
-      console.log('Local audio track created successfully');
-      return audioTrack;
+      // In React Native, audio tracks are created through the Room
+      // This method is a placeholder - the actual track is obtained via Room.localParticipant
+      console.log('Audio track will be created when published to room');
+      return null;
 
     } catch (error) {
       console.error('Failed to create local audio track:', error);
@@ -63,15 +55,13 @@ export class AudioService {
    */
   async publishAudioTrack(room: Room): Promise<void> {
     try {
-      if (!this.audioTrack) {
-        await this.createLocalAudioTrack();
-      }
-
-      if (!this.audioTrack) {
-        throw new Error('No audio track available');
-      }
-
-      await room.localParticipant.publishTrack(this.audioTrack);
+      // In React Native, enable microphone through localParticipant
+      await room.localParticipant.setMicrophoneEnabled(true);
+      
+      // Get the audio track from the participant
+      const audioPublication = Array.from(room.localParticipant.audioTrackPublications.values())[0];
+      this.audioTrack = audioPublication?.track as LocalAudioTrack || null;
+      
       console.log('Audio track published successfully');
 
     } catch (error) {
@@ -85,8 +75,9 @@ export class AudioService {
    */
   async unpublishAudioTrack(room: Room): Promise<void> {
     try {
-      if (this.audioTrack && room.localParticipant) {
-        await room.localParticipant.unpublishTrack(this.audioTrack);
+      if (room.localParticipant) {
+        await room.localParticipant.setMicrophoneEnabled(false);
+        this.audioTrack = null;
         console.log('Audio track unpublished successfully');
       }
     } catch (error) {
@@ -165,9 +156,13 @@ export class AudioService {
   /**
    * Mute/unmute audio
    */
-  setMuted(muted: boolean): void {
+  async setMuted(muted: boolean): Promise<void> {
     if (this.audioTrack) {
-      this.audioTrack.setMuted(muted);
+      if (muted) {
+        await this.audioTrack.mute();
+      } else {
+        await this.audioTrack.unmute();
+      }
       this.isMuted = muted;
       console.log(`Audio ${muted ? 'muted' : 'unmuted'}`);
     }
