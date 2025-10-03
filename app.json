@@ -13,7 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "BakeBot needs photo access to help with your cooking questions and share images of your recipes.",
+        "NSCameraUsageDescription": "BakeBot needs camera access to see your cooking and help with recipe questions.",
+        "NSMicrophoneUsageDescription": "BakeBot needs microphone access to hear your cooking questions and provide voice assistance."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +27,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.sjufan84.exporeactnativeapp"
+      "package": "com.sjufan84.exporeactnativeapp",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

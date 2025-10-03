@@ -12,6 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAgent } from '../../context/AgentContext';
+import { ImagePickerService } from '../../services/ImagePickerService';
+import { ImageResult, ProcessedImageResult } from '../../types/message.types';
+import ImagePreviewModal from './ImagePreviewModal';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
@@ -31,9 +34,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
 }) => {
   const { theme } = useTheme();
-  const { isConnected } = useAgent();
+  const { isConnected, sendProcessedImage } = useAgent();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImageResult | null>(null);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const insets = useSafeAreaInsets();
@@ -135,9 +141,71 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
+  // Handle image selection
+  const handleImageSelection = useCallback(async () => {
+    if (!isConnected) {
+      Alert.alert('Not Connected', 'Please wait for the connection to be established.');
+      return;
+    }
+
+    try {
+      setIsProcessingImage(true);
+      const imageResult = await ImagePickerService.showImageSourceDialog();
+
+      // Validate the image
+      const validation = ImagePickerService.validateImage(imageResult);
+      if (!validation.isValid) {
+        Alert.alert('Invalid Image', validation.error);
+        return;
+      }
+
+      setSelectedImage(imageResult);
+      setShowImagePreview(true);
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to select image';
+
+      // Don't show alert for user cancellation
+      if (!errorMessage.includes('cancelled') && !errorMessage.includes('User cancelled')) {
+        Alert.alert('Image Selection Error', errorMessage);
+      }
+    } finally {
+      setIsProcessingImage(false);
+    }
+  }, [isConnected]);
+
+  // Handle image sending from preview modal
+  const handleSendImage = useCallback(async (processedImage: ProcessedImageResult, caption?: string) => {
+    try {
+      // Close the preview modal
+      setShowImagePreview(false);
+      setSelectedImage(null);
+
+      // Send the image using the AgentContext
+      await sendProcessedImage(processedImage, caption);
+
+      console.log('Image sent successfully:', {
+        uri: processedImage.uri,
+        caption,
+        size: processedImage.fileSize,
+        dimensions: `${processedImage.width}x${processedImage.height}`,
+      });
+    } catch (error) {
+      console.error('Error sending image:', error);
+      // The error is already handled in AgentContext, but we can add additional UI feedback here if needed
+    }
+  }, [sendProcessedImage]);
+
+  // Handle closing image preview
+  const handleCloseImagePreview = useCallback(() => {
+    setShowImagePreview(false);
+    setSelectedImage(null);
+  }, []);
+
   const canSend = message.trim().length > 0 && isConnected && !disabled;
 
   return (
+    <>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[
@@ -159,14 +227,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
               borderColor: colors.border,
             },
           ]}
-          disabled={disabled}
-          onPress={() => {
-            // TODO: Implement attachment functionality
-            Alert.alert('Coming Soon', 'Image attachments will be available in the next update!');
-          }}
+          onPress={handleImageSelection}
+          disabled={disabled || isProcessingImage}
         >
-          <Text style={[styles.attachIcon, { color: colors.textSecondary }]}>
-            📷
+          <Text style={[styles.attachIcon, {
+            color: isProcessingImage ? colors.primary : colors.textSecondary,
+            opacity: (disabled || isProcessingImage) ? 0.5 : 1
+          }]}>
+            {isProcessingImage ? '⏳' : '📷'}
           </Text>
         </TouchableOpacity>
 
@@ -257,6 +325,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </View>
       )}
     </KeyboardAvoidingView>
+
+    {/* Image Preview Modal */}
+    <ImagePreviewModal
+      visible={showImagePreview}
+      image={selectedImage}
+      onClose={handleCloseImagePreview}
+      onSend={handleSendImage}
+    />
+    </>
   );
 };
 

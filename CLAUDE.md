@@ -87,3 +87,6 @@ src/
 - Must use `npm install --legacy-peer-deps` due to dependency conflicts
 - EAS Build available for cloud-based development builds
 - Local development requires Android Studio/Xcode setup
+
+**Documentation:**
+- To review latest documentation for LiveKit, review llms.txt file for links to relevant docs.

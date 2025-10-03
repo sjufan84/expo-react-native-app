@@ -7,6 +7,7 @@ export interface Message {
   status: 'sending' | 'sent' | 'failed';
   type: 'text' | 'image' | 'voice';
   imageUri?: string;
+  imageData?: ImageMessageData;
   mode?: 'voice' | 'text' | 'image';
 }
 
@@ -84,4 +85,25 @@ export interface ImageResult {
   height: number;
   fileSize: number;
   type: string;
+}
+
+export interface ImageMessageData {
+  uri: string;
+  width: number;
+  height: number;
+  fileSize: number;
+  type: string;
+  base64?: string;
+  compressionRatio?: number;
+  caption?: string;
+}
+
+export interface ProcessedImageResult {
+  uri: string;
+  width: number;
+  height: number;
+  fileSize: number;
+  type: string;
+  base64?: string;
+  compressionRatio?: number;
 }

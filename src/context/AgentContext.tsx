@@ -2,7 +2,7 @@
 /* eslint-disable no-undef */
 import React, { createContext, useContext, useReducer, useCallback, useState, ReactNode } from 'react';
 import { useLiveKit } from '../hooks/useLiveKit';
-import { Message, InputMode, DataChannelMessage, ConnectionState } from '../types/message.types';
+import { Message, InputMode, DataChannelMessage, ConnectionState, ProcessedImageResult, ImageMessageData } from '../types/message.types';
 import { ERROR_MESSAGES, CHAT_CONFIG } from '../utils/constants';
 import { generateMessageId, validateMessage } from '../utils/formatters';
 // import { LIVEKIT_CONFIG } from '../utils/constants';
@@ -115,6 +115,7 @@ interface AgentContextType extends AgentState {
   // Message methods
   sendMessage: (content: string, type: Message['type']) => Promise<void>;
   sendImage: (imageUri: string, metadata?: any) => Promise<void>;
+  sendProcessedImage: (image: ProcessedImageResult, caption?: string) => Promise<void>;
 
   // UI methods
   setInputMode: (mode: InputMode) => void;
@@ -245,16 +246,26 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [liveKit, state.currentInputMode.type]);
 
-  // Send image
+  // Send image (legacy method for backward compatibility)
   const sendImage = useCallback(async (imageUri: string, metadata?: any) => {
+    const imageData: ImageMessageData = {
+      uri: imageUri,
+      width: 0, // Unknown dimensions
+      height: 0, // Unknown dimensions
+      fileSize: 0, // Unknown file size
+      type: 'image/jpeg', // Default type
+      caption: metadata?.caption,
+    };
+
     const imageMessage: Message = {
       id: generateMessageId(),
       sender: 'user',
-      content: 'Image shared',
+      content: metadata?.caption || 'Image shared',
       timestamp: new Date(),
       status: 'sending',
       type: 'image',
       imageUri,
+      imageData,
       mode: 'image',
     };
 
@@ -265,7 +276,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Send via LiveKit
       const dataMessage: DataChannelMessage = {
         type: 'image',
-        payload: { imageUri, metadata },
+        payload: { imageData, metadata },
         timestamp: Date.now(),
         messageId: imageMessage.id,
       };
@@ -283,6 +294,95 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       dispatch({ type: 'SET_TYPING', payload: true });
 
     } catch (error) {
+      // Update message status to failed
+      dispatch({
+        type: 'UPDATE_MESSAGE',
+        payload: { id: imageMessage.id, updates: { status: 'failed' } }
+      });
+
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.generic;
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    }
+  }, [liveKit]);
+
+  // Send processed image (new enhanced method)
+  const sendProcessedImage = useCallback(async (image: ProcessedImageResult, caption?: string) => {
+    const imageData: ImageMessageData = {
+      uri: image.uri,
+      width: image.width,
+      height: image.height,
+      fileSize: image.fileSize,
+      type: image.type,
+      base64: image.base64,
+      compressionRatio: image.compressionRatio,
+      caption,
+    };
+
+    const imageMessage: Message = {
+      id: generateMessageId(),
+      sender: 'user',
+      content: caption || 'Image shared',
+      timestamp: new Date(),
+      status: 'sending',
+      type: 'image',
+      imageData,
+      mode: 'image',
+    };
+
+    // Add message to state
+    dispatch({ type: 'ADD_MESSAGE', payload: imageMessage });
+
+    try {
+      // Prepare data for LiveKit transmission
+      let transmissionData: any = {
+        imageData: {
+          uri: image.uri,
+          width: image.width,
+          height: image.height,
+          fileSize: image.fileSize,
+          type: image.type,
+          compressionRatio: image.compressionRatio,
+          caption,
+        },
+      };
+
+      // Include base64 if available and not too large
+      if (image.base64 && image.fileSize < 5 * 1024 * 1024) { // 5MB limit
+        transmissionData.imageData.base64 = image.base64;
+      } else if (image.base64) {
+        console.warn('Image base64 data too large for transmission, sending URI only');
+      }
+
+      // Send via LiveKit
+      const dataMessage: DataChannelMessage = {
+        type: 'image',
+        payload: transmissionData,
+        timestamp: Date.now(),
+        messageId: imageMessage.id,
+      };
+
+      await liveKit.sendData(dataMessage);
+
+      console.log('Image sent via LiveKit:', {
+        messageId: imageMessage.id,
+        size: image.fileSize,
+        dimensions: `${image.width}x${image.height}`,
+        hasBase64: !!image.base64,
+      });
+
+      // Update message status to sent
+      dispatch({
+        type: 'UPDATE_MESSAGE',
+        payload: { id: imageMessage.id, updates: { status: 'sent' } }
+      });
+
+      // Set agent to processing state
+      dispatch({ type: 'SET_AGENT_STATUS', payload: 'processing' });
+      dispatch({ type: 'SET_TYPING', payload: true });
+
+    } catch (error) {
+      console.error('Error sending image via LiveKit:', error);
+
       // Update message status to failed
       dispatch({
         type: 'UPDATE_MESSAGE',
@@ -366,6 +466,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     connectionState: getConnectionState(),
     sendMessage,
     sendImage,
+    sendProcessedImage,
     setInputMode,
     clearMessages,
     clearError,
