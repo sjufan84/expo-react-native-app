@@ -1,12 +1,14 @@
-# Expo React Native App
+# Expo React Native App with LiveKit
 
-A modern React Native app built with Expo, TypeScript, and React Navigation.
+A modern React Native app built with Expo, TypeScript, React Navigation, and LiveKit for real-time voice/video communication.
 
 ## 🚀 Features
 
-- **Expo SDK 54** - Latest Expo framework
+- **Expo SDK 54** - Latest Expo framework with Dev Client
+- **LiveKit Integration** - Real-time audio/video communication
 - **TypeScript** - Full type safety
-- **React Navigation** - Stack navigation setup
+- **React Navigation** - Stack navigation with Chat and Settings screens
+- **Theme System** - Light/Dark mode support
 - **ESLint & Prettier** - Code quality and formatting
 - **Modern Project Structure** - Organized folders and files
 
@@ -29,33 +31,66 @@ src/
 - Node.js (v18 or higher)
 - npm or yarn
 - Expo CLI (`npm install -g @expo/cli`)
-- Expo Go app on your mobile device (optional)
+- **For Android**: Android Studio or a physical device
+- **For iOS**: Xcode (macOS only) or a physical device
 
-### Installation
+### ⚠️ Important: Dev Client Required
+
+**This app uses LiveKit (native module) and CANNOT run on Expo Go.**
+
+You must build a custom development client. See **[BUILD_INSTRUCTIONS.md](./BUILD_INSTRUCTIONS.md)** for detailed steps.
+
+### Quick Start
+
+#### Option 1: Local Development (Requires Android Studio/Xcode)
 
 1. Install dependencies:
 ```bash
-npm install
+npm install --legacy-peer-deps
 ```
 
-2. Start the development server:
+2. Run on Android:
+```bash
+npm run android
+```
+
+3. Run on iOS (macOS only):
+```bash
+npm run ios
+```
+
+#### Option 2: EAS Build (Cloud - No local setup needed)
+
+1. Install EAS CLI:
+```bash
+npm install -g eas-cli
+```
+
+2. Build development client:
+```bash
+eas login
+eas build:configure
+eas build --profile development --platform android
+```
+
+3. Install the built APK/IPA on your device
+
+4. Start development:
 ```bash
 npm start
 ```
 
-3. Run on specific platforms:
-```bash
-npm run android    # Android
-npm run ios        # iOS
-npm run web        # Web
-```
+For detailed instructions, see **[BUILD_INSTRUCTIONS.md](./BUILD_INSTRUCTIONS.md)**
 
 ## 📱 Available Scripts
 
-- `npm start` - Start the Expo development server
-- `npm run android` - Run on Android device/emulator
-- `npm run ios` - Run on iOS device/simulator
+- `npm start` - Start dev server for custom dev client
+- `npm run start:go` - Start for Expo Go (won't work with LiveKit)
+- `npm run android` - Build and run on Android
+- `npm run ios` - Build and run on iOS
 - `npm run web` - Run in web browser
+- `npm run prebuild` - Generate native code
+- `npm run prebuild:clean` - Clean and regenerate native code
 - `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix ESLint errors
 - `npm run format` - Format code with Prettier
@@ -69,10 +104,22 @@ npm run web        # Web
 
 ## 📦 Key Dependencies
 
-- `expo` - Expo SDK
+### Core
+- `expo` - Expo SDK 54
+- `expo-dev-client` - Custom development builds
 - `react-navigation` - Navigation library
 - `react-native-screens` - Native screen optimization
 - `react-native-safe-area-context` - Safe area handling
+
+### LiveKit
+- `@livekit/react-native` - LiveKit React Native SDK
+- `@livekit/react-native-webrtc` - WebRTC support
+- `livekit-client` - LiveKit client for E2EE
+
+### Animation & UI
+- `react-native-reanimated` - Advanced animations
+- `react-native-worklets` - Worklets support
+- `react-native-gesture-handler` - Gesture handling
 
 ## 🔧 Development Tools
 

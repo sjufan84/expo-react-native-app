@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start": "expo start --dev-client",
+    "start:go": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -15,19 +18,22 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@livekit/react-native": "^2.9.1",
+    "@livekit/react-native-expo-plugin": "^1.0.1",
     "@livekit/react-native-webrtc": "^137.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.7",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.8",
-    "@testing-library/react-hooks": "^8.0.1",
     "@testing-library/react-native": "^13.3.3",
     "babel-preset-expo": "^54.0.3",
+    "event-target-shim": "^6.0.2",
     "expo": "^54.0.12",
+    "expo-dev-client": "~6.0.13",
     "expo-status-bar": "~3.0.8",
     "jest": "^30.2.0",
+    "livekit-client": "^2.15.8",
     "react": "19.1.0",
-    "react-native": "0.81.4",
+    "react-native": "^0.81.4",
     "react-native-gesture-handler": "^2.28.0",
     "react-native-image-picker": "^8.2.1",
     "react-native-keychain": "^10.0.0",
@@ -36,6 +42,7 @@
     "react-native-screens": "^4.16.0",
     "react-native-svg": "^15.13.0",
     "react-native-vector-icons": "^10.3.0",
+    "react-native-worklets": "^0.6.0",
     "react-native-worklets-core": "^1.6.2"
   },
   "devDependencies": {
@@ -47,6 +54,9 @@
     "eslint-config-expo": "^10.0.0",
     "prettier": "^3.6.2",
     "typescript": "~5.9.2"
+  },
+  "resolutions": {
+    "event-target-shim": "^6.0.2"
   },
   "private": true
 }
