@@ -12,7 +12,6 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import { Message } from '../types/message.types';
-import { formatTime } from '../utils/formatters';
 
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();

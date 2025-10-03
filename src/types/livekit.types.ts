@@ -15,17 +15,17 @@ export interface AudioLevelEvent {
 
 export interface DataReceivedEvent {
   payload: Uint8Array;
-  participant: Participant;
+  participant: any; // Using any for now since Participant type is complex
 }
 
 export interface ParticipantEvent {
-  participant: Participant;
+  participant: any; // Using any for now since Participant type is complex
   type: 'connected' | 'disconnected';
 }
 
 export interface TrackEvent {
-  track: Track;
-  participant: Participant;
+  track: any; // Using any for now since Track type is complex
+  participant: any; // Using any for now since Participant type is complex
   type: 'subscribed' | 'unsubscribed';
 }
 

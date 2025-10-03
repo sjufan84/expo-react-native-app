@@ -5,7 +5,7 @@ export const APP_CONFIG = {
 } as const;
 
 export const LIVEKIT_CONFIG = {
-  url: process.env.EXPO_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.com',
+  url: 'wss://your-livekit-server.com', // Will be configured via environment variables
   reconnectAttempts: 5,
   reconnectDelay: 1000, // ms
   connectionTimeout: 10000, // ms

@@ -1,4 +1,4 @@
-import { Message } from '../types/message.types';
+// import { Message } from '../types/message.types'; // Commented out as it's not used in this file
 
 export const formatTime = (date: Date): string => {
   const now = new Date();

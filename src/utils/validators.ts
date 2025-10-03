@@ -48,8 +48,9 @@ export const isValidEmail = (email: string): boolean => {
 
 export const isValidUrl = (url: string): boolean => {
   try {
-    new URL(url);
-    return true;
+    // Use a simple regex check instead of URL constructor for React Native compatibility
+    const urlRegex = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)$/;
+    return urlRegex.test(url);
   } catch {
     return false;
   }

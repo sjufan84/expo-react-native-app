@@ -10,7 +10,7 @@ export const Theme = {
   iconSizes: IconSizes,
 } as const;
 
-export type Theme = typeof Theme;
+export type ThemeType = typeof Theme;
 
 // Utility functions for accessing theme values
 export const createTextStyle = (size: keyof typeof Typography.fontSize, weight: keyof typeof Typography.fontWeight = 'normal') => ({

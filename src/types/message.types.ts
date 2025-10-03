@@ -98,8 +98,8 @@ export interface Room {
   name: string;
   participants: Map<string, Participant>;
   localParticipant: LocalParticipant;
-  on: (event: string, handler: Function) => void;
-  off: (event: string, handler: Function) => void;
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  off: (event: string, handler: (...args: any[]) => void) => void;
   disconnect: () => Promise<void>;
 }
 
@@ -107,8 +107,8 @@ export interface Participant {
   sid: string;
   identity: string;
   tracks: Map<string, Track>;
-  on: (event: string, handler: Function) => void;
-  off: (event: string, handler: Function) => void;
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  off: (event: string, handler: (...args: any[]) => void) => void;
 }
 
 export interface LocalParticipant extends Participant {
@@ -119,7 +119,7 @@ export interface LocalParticipant extends Participant {
 export interface Track {
   sid: string;
   kind: 'audio' | 'video' | 'data';
-  mediaStreamTrack?: MediaStreamTrack;
+  mediaStreamTrack?: any; // MediaStreamTrack is not available in React Native
 }
 
 export interface LocalAudioTrack extends Track {

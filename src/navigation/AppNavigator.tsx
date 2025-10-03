@@ -4,8 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 
 // Import screens
-import HomeScreen from '../screens/HomeScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import ChatScreen from '../screens/ChatScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -14,7 +13,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Home"
+        initialRouteName="Chat"
         screenOptions={{
           headerStyle: {
             backgroundColor: '#007AFF',
@@ -26,18 +25,11 @@ export default function AppNavigator() {
         }}
       >
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
+          name="Chat"
+          component={ChatScreen}
           options={{
-            title: 'Home',
-            headerShown: false, // Hide header for home screen
-          }}
-        />
-        <Stack.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{
-            title: 'Profile',
+            title: 'BakeBot',
+            headerShown: false, // Hide header for chat screen
           }}
         />
         <Stack.Screen

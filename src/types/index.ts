@@ -1,7 +1,6 @@
 // Navigation types
 export type RootStackParamList = {
-  Home: undefined;
-  Profile: undefined;
+  Chat: undefined;
   Settings: undefined;
 };
 
