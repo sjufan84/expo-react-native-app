@@ -1,196 +1,246 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
+  ScrollView,
+  StatusBar,
   Switch,
-  Alert,
 } from 'react-native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../types';
+import { useTheme } from '../context/ThemeContext';
 
-type SettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'>;
-
-interface Props {
-  navigation: SettingsScreenNavigationProp;
-}
-
-export default function SettingsScreen({ navigation }: Props) {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            // Handle logout logic here
-            // User logged out
-          },
-        },
-      ]
-    );
-  };
+const SettingsScreen: React.FC = () => {
+  const { theme, isDark, toggleTheme } = useTheme();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Settings</Text>
-        
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Push Notifications</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={notificationsEnabled ? '#007AFF' : '#f4f3f4'}
-            />
-          </View>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingLabel}>Dark Mode</Text>
-            <Switch
-              value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={darkModeEnabled ? '#007AFF' : '#f4f3f4'}
-            />
-          </View>
-        </View>
-        
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          <TouchableOpacity style={styles.settingButton}>
-            <Text style={styles.settingButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.settingButton}>
-            <Text style={styles.settingButtonText}>Privacy Settings</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.settingButton}>
-            <Text style={styles.settingButtonText}>Help & Support</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Go Back</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StatusBar
+        barStyle={theme.colors.background === '#ffffff' ? 'dark-content' : 'light-content'}
+        backgroundColor={theme.colors.background}
+      />
+
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity style={styles.backButton}>
+          <Text style={[styles.backText, { color: theme.colors.text }]}>←</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Settings
+        </Text>
+        <View style={styles.placeholder} />
       </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Appearance Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Appearance
+          </Text>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Dark Mode
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                Reduce eye strain in low light
+              </Text>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={isDark ? theme.colors.primaryLight : theme.colors.backgroundSecondary}
+            />
+          </View>
+        </View>
+
+        {/* Voice Settings */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Voice Settings
+          </Text>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Voice Mode
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                Push to talk or continuous
+              </Text>
+            </View>
+            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
+              Push to Talk
+            </Text>
+          </View>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Audio Quality
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                Higher quality uses more data
+              </Text>
+            </View>
+            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
+              High
+            </Text>
+          </View>
+        </View>
+
+        {/* Chat Settings */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Chat Settings
+          </Text>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Message History
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                Keep conversation history
+              </Text>
+            </View>
+            <Switch
+              value={true}
+              onValueChange={() => {}}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.primaryLight}
+            />
+          </View>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Typing Indicators
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                Show when BakeBot is typing
+              </Text>
+            </View>
+            <Switch
+              value={true}
+              onValueChange={() => {}}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.primaryLight}
+            />
+          </View>
+        </View>
+
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            About
+          </Text>
+
+          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Version
+              </Text>
+            </View>
+            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
+              1.0.0
+            </Text>
+          </View>
+
+          <TouchableOpacity style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Privacy Policy
+              </Text>
+            </View>
+            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
+              →
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.settingRow]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Terms of Service
+              </Text>
+            </View>
+            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
+              →
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  placeholder: {
+    width: 40,
   },
   content: {
     flex: 1,
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
+    padding: 16,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
+    fontWeight: '700',
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  settingItem: {
+  settingRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 16,
   },
   settingLabel: {
     fontSize: 16,
-    color: '#333',
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  settingButton: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  settingDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
-  settingButtonText: {
+  settingValue: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '500',
   },
-  backButton: {
-    backgroundColor: '#34C759',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 8,
-    marginTop: 20,
-    alignSelf: 'center',
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 8,
-    marginTop: 10,
-    alignSelf: 'center',
-  },
-  logoutButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
 });
+
+export default SettingsScreen;
