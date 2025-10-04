@@ -1,15 +1,15 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
+import { View, Text } from 'react-native';
 import { useAgent } from '../../context/AgentContext';
 import { useVoice } from '../../hooks/useVoice';
+import { Button } from '../ui/Button';
+import { cn } from '../../utils/cn';
 
 interface VoiceSessionControlsProps {
   onEndSession: () => void;
 }
 
 const VoiceSessionControls: React.FC<VoiceSessionControlsProps> = ({ onEndSession }) => {
-  const { theme } = useTheme();
   const { session, updateSession } = useAgent();
   const voice = useVoice();
 
@@ -24,7 +24,7 @@ const VoiceSessionControls: React.FC<VoiceSessionControlsProps> = ({ onEndSessio
   const handleToggleMute = () => {
     const newMutedState = !session.isMuted;
     updateSession({ isMuted: newMutedState });
-    voice.toggleMute();
+    voice.toggleMute(newMutedState);
   };
 
   const handleToggleVoiceMode = () => {
@@ -34,133 +34,59 @@ const VoiceSessionControls: React.FC<VoiceSessionControlsProps> = ({ onEndSessio
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-      {/* Session Info */}
-      <View style={styles.sessionInfo}>
-        <View style={[styles.activeIndicator, { backgroundColor: theme.colors.success || '#10b981' }]} />
-        <View style={styles.sessionDetails}>
-          <Text style={[styles.sessionType, { color: theme.colors.text }]}>
+    <View
+      className={cn(
+        'flex-row items-center justify-between px-4 py-3',
+        'border-t border-border bg-backgroundSecondary',
+        'dark:border-borderDark dark:bg-backgroundSecondaryDark'
+      )}
+    >
+      <View className="flex-row items-center gap-3">
+        <View className="h-2.5 w-2.5 rounded-full bg-success" />
+        <View>
+          <Text className="text-sm font-semibold text-text dark:text-textDark">
             {session.type === 'voice-ptt' ? 'Voice (PTT)' : 'Voice (VAD)'}
           </Text>
-          <Text style={[styles.sessionDuration, { color: theme.colors.textSecondary }]}>
+          <Text className="text-xs text-textSecondary dark:text-textSecondaryDark">
             {formatDuration(session.startedAt)}
           </Text>
         </View>
       </View>
 
-      {/* Controls */}
-      <View style={styles.controls}>
-        {/* Mute Button */}
-        <TouchableOpacity
-          style={[
-            styles.controlButton,
-            {
-              backgroundColor: session.isMuted ? theme.colors.error : theme.colors.background,
-              borderColor: theme.colors.border,
-            },
-          ]}
+      <View className="flex-row items-center gap-2">
+        <Button
+          variant={session.isMuted ? 'destructive' : 'outline'}
+          size="icon"
           onPress={handleToggleMute}
+          className="h-10 w-10 rounded-full"
         >
-          <Text style={[styles.controlIcon, { color: session.isMuted ? 'white' : theme.colors.text }]}>
+          <Text className={cn('text-lg', !session.isMuted && 'text-text dark:text-textDark')}>
             {session.isMuted ? '🔇' : '🎤'}
           </Text>
-        </TouchableOpacity>
+        </Button>
 
-        {/* Voice Mode Toggle */}
-        <TouchableOpacity
-          style={[
-            styles.controlButton,
-            {
-              backgroundColor: theme.colors.background,
-              borderColor: theme.colors.border,
-            },
-          ]}
+        <Button
+          variant="outline"
+          size="sm"
           onPress={handleToggleVoiceMode}
+          className="h-10 rounded-full px-3"
         >
-          <Text style={[styles.controlText, { color: theme.colors.text }]}>
+          <Text className="text-xs font-bold text-text dark:text-textDark">
             {session.voiceMode === 'push-to-talk' ? 'PTT' : 'VAD'}
           </Text>
-        </TouchableOpacity>
+        </Button>
 
-        {/* End Session Button */}
-        <TouchableOpacity
-          style={[
-            styles.endButton,
-            {
-              backgroundColor: theme.colors.error || '#ef4444',
-            },
-          ]}
+        <Button
+          variant="destructive"
+          size="sm"
           onPress={onEndSession}
+          className="h-10 rounded-full px-4"
         >
-          <Text style={styles.endButtonText}>End</Text>
-        </TouchableOpacity>
+          <Text className="text-sm font-semibold text-white">End</Text>
+        </Button>
       </View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-  },
-  sessionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  activeIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  sessionDetails: {
-    gap: 2,
-  },
-  sessionType: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sessionDuration: {
-    fontSize: 12,
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  controlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  controlIcon: {
-    fontSize: 18,
-  },
-  controlText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  endButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  endButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
-
 export default VoiceSessionControls;
-

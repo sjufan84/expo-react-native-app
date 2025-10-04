@@ -1,246 +1,104 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  StatusBar,
-  Switch,
-} from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import { View, Text, ScrollView, Switch } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
+import { Button } from '../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { cn } from '../utils/cn';
 
 const SettingsScreen: React.FC = () => {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { colorScheme, toggleColorScheme } = useColorScheme();
+  const [settings, setSettings] = React.useState({
+    darkMode: colorScheme === 'dark',
+    history: true,
+    typingIndicators: true,
+    voiceMode: 'Push to Talk',
+    audioQuality: 'High',
+  });
+
+  const handleToggle = (key: keyof typeof settings) => {
+    if (key === 'darkMode') {
+      toggleColorScheme();
+      setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+    } else {
+      setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+  };
+
+  const SettingRow = ({ label, description, control }: { label: string; description?: string; control: React.ReactNode }) => (
+    <View className="flex-row items-center justify-between py-4">
+      <View className="flex-1 pr-4">
+        <Text className="text-base font-semibold text-text dark:text-textDark">{label}</Text>
+        {description && <Text className="text-sm text-textSecondary dark:text-textSecondaryDark mt-1">{description}</Text>}
+      </View>
+      {control}
+    </View>
+  );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar
-        barStyle={theme.colors.background === '#ffffff' ? 'dark-content' : 'light-content'}
-        backgroundColor={theme.colors.background}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity style={styles.backButton}>
-          <Text style={[styles.backText, { color: theme.colors.text }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Settings
-        </Text>
-        <View style={styles.placeholder} />
+    <SafeAreaView className="flex-1 bg-background dark:bg-backgroundDark">
+      <View className="flex-row items-center justify-between px-4 py-2 border-b border-border dark:border-borderDark">
+        <Button variant="ghost" size="icon">
+          <Text className="text-2xl">←</Text>
+        </Button>
+        <Text className="text-xl font-bold text-text dark:text-textDark">Settings</Text>
+        <View className="w-10" />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Appearance
-          </Text>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Dark Mode
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                Reduce eye strain in low light
-              </Text>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleTheme}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={isDark ? theme.colors.primaryLight : theme.colors.backgroundSecondary}
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SettingRow
+              label="Dark Mode"
+              description="Reduce eye strain in low light"
+              control={<Switch value={settings.darkMode} onValueChange={() => handleToggle('darkMode')} />}
             />
-          </View>
-        </View>
+          </CardContent>
+        </Card>
 
-        {/* Voice Settings */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Voice Settings
-          </Text>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Voice Mode
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                Push to talk or continuous
-              </Text>
-            </View>
-            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
-              Push to Talk
-            </Text>
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Audio Quality
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                Higher quality uses more data
-              </Text>
-            </View>
-            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
-              High
-            </Text>
-          </View>
-        </View>
-
-        {/* Chat Settings */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Chat Settings
-          </Text>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Message History
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                Keep conversation history
-              </Text>
-            </View>
-            <Switch
-              value={true}
-              onValueChange={() => {}}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={theme.colors.primaryLight}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Voice & Chat</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SettingRow
+              label="Voice Mode"
+              description="Push to talk or continuous"
+              control={<Text className="text-base text-textSecondary dark:text-textSecondaryDark">{settings.voiceMode}</Text>}
             />
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Typing Indicators
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                Show when BakeBot is typing
-              </Text>
-            </View>
-            <Switch
-              value={true}
-              onValueChange={() => {}}
-              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-              thumbColor={theme.colors.primaryLight}
+            <View className="h-px bg-border dark:bg-borderDark my-2" />
+            <SettingRow
+              label="Message History"
+              description="Keep conversation history"
+              control={<Switch value={settings.history} onValueChange={() => handleToggle('history')} />}
             />
-          </View>
-        </View>
+            <View className="h-px bg-border dark:bg-borderDark my-2" />
+            <SettingRow
+              label="Typing Indicators"
+              description="Show when BakeBot is typing"
+              control={<Switch value={settings.typingIndicators} onValueChange={() => handleToggle('typingIndicators')} />}
+            />
+          </CardContent>
+        </Card>
 
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            About
-          </Text>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Version
-              </Text>
-            </View>
-            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
-              1.0.0
-            </Text>
-          </View>
-
-          <TouchableOpacity style={[styles.settingRow, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Privacy Policy
-              </Text>
-            </View>
-            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
-              →
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.settingRow]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                Terms of Service
-              </Text>
-            </View>
-            <Text style={[styles.settingValue, { color: theme.colors.textSecondary }]}>
-              →
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Card>
+          <CardHeader>
+            <CardTitle>About</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SettingRow label="Version" control={<Text className="text-base text-textSecondary dark:text-textSecondaryDark">1.0.0</Text>} />
+            <View className="h-px bg-border dark:bg-borderDark my-2" />
+            <SettingRow label="Privacy Policy" control={<Text className="text-lg">→</Text>} />
+             <View className="h-px bg-border dark:bg-borderDark my-2" />
+            <SettingRow label="Terms of Service" control={<Text className="text-lg">→</Text>} />
+          </CardContent>
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 8,
-  },
-  backText: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  placeholder: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  settingValue: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-});
 
 export default SettingsScreen;
