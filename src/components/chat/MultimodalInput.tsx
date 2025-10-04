@@ -2,9 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   TextInput,
-  TouchableOpacity,
   Text,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -12,12 +10,15 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../../context/ThemeContext';
 import { useAgent } from '../../context/AgentContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useVoice } from '../../hooks/useVoice';
 import { ImagePickerService } from '../../services/ImagePickerService';
 import { ImageResult, ProcessedImageResult } from '../../types/message.types';
 import ImagePreviewModal from './ImagePreviewModal';
+import { Button } from '../ui/Button';
+import { cn } from '../../utils/cn';
+import { Spinner } from '../ui/Spinner';
 
 interface MultimodalInputProps {
   onSendMessage: (message: string) => void;
@@ -47,57 +48,62 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isPressingRecord, setIsPressingRecord] = useState(false);
   const pressStartTime = useRef(0);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const inputRef = useRef<TextInput>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
-  const colors = theme.colors as any;
+  const handlePressIn = () => {
+    setIsPressingRecord(true);
+    Animated.spring(scaleAnim, {
+      toValue: 1.1,
+      useNativeDriver: true,
+    }).start();
+  };
 
-  // Pan responder for push-to-talk voice recording
+  const handlePressOut = () => {
+    setIsPressingRecord(false);
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !disabled && message.trim().length === 0,
-      onMoveShouldSetPanResponder: () => false,
       onPanResponderGrant: async () => {
         if (voice.isRecording) return;
-        
-        // Start voice session if not active
         if (session.state === 'idle') {
           await startSession('voice-ptt', 'push-to-talk');
         }
-        
-        setIsPressingRecord(true);
+        handlePressIn();
         pressStartTime.current = Date.now();
         voice.startRecording().catch(error => {
           console.error('Failed to start voice recording:', error);
-          setIsPressingRecord(false);
+          handlePressOut();
         });
       },
       onPanResponderRelease: () => {
         if (!voice.isRecording) return;
-
+        handlePressOut();
         const pressDuration = Date.now() - pressStartTime.current;
-        setIsPressingRecord(false);
-        voice.stopRecording().catch(error => {
-          console.error('Failed to stop voice recording:', error);
-        });
-
-        if (pressDuration > 300) { // Avoid accidental taps
+        voice.stopRecording().catch(error => console.error('Failed to stop voice recording:', error));
+        if (pressDuration > 300) {
           onSendVoiceMessage();
         }
       },
       onPanResponderTerminate: () => {
         if (voice.isRecording) {
-          setIsPressingRecord(false);
-          voice.stopRecording().catch(error => {
-            console.error('Failed to stop voice recording on terminate:', error);
-          });
+          handlePressOut();
+          voice.stopRecording().catch(error => console.error('Failed to stop voice recording on terminate:', error));
         }
       },
     })
   ).current;
 
+<<<<<<< HEAD
   // Handle typing indicators with debouncing (500ms delay)
   const handleTypingIndicator = useCallback((isTyping: boolean) => {
     // Clear existing timeout
@@ -112,8 +118,21 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
         isTypingRef.current = true;
         sendUserTypingIndicator(true);
         onTypingStart?.();
+=======
+  const handleTypingStart = useCallback(() => {
+    if (!isTyping && message.trim().length > 0) {
+      setIsTyping(true);
+      onTypingStart?.();
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping) {
+        setIsTyping(false);
+        onTypingEnd?.();
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
       }
 
+<<<<<<< HEAD
       // Set timeout to automatically stop typing after 500ms of inactivity
       typingTimeoutRef.current = setTimeout(() => {
         isTypingRef.current = false;
@@ -129,46 +148,59 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   }, [sendUserTypingIndicator, onTypingStart, onTypingEnd]);
 
   // Handle text change with debounced typing detection
+=======
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
   const handleTextChange = useCallback((text: string) => {
     if (text.length > maxLength) {
-      // Show alert for max length
       Alert.alert('Message Too Long', `Maximum message length is ${maxLength} characters.`);
       return;
     }
-
     setMessage(text);
+<<<<<<< HEAD
 
     // Trigger typing indicator if user is actually typing (non-empty text)
     const hasText = text.trim().length > 0;
     handleTypingIndicator(hasText);
   }, [maxLength, handleTypingIndicator]);
+=======
+    if (text.trim().length > 0) {
+      handleTypingStart();
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (isTyping) {
+        setIsTyping(false);
+        onTypingEnd?.();
+      }
+    }
+  }, [maxLength, handleTypingStart, isTyping, onTypingEnd]);
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
 
-  // Handle sending message
   const handleSendMessage = useCallback(() => {
     const trimmedMessage = message.trim();
-
-    if (!trimmedMessage) {
-      return;
-    }
-
+    if (!trimmedMessage) return;
     if (!isConnected) {
       Alert.alert('Not Connected', 'Please wait for the connection to be established.');
       return;
     }
-
-    // Send the message
     onSendMessage(trimmedMessage);
-
-    // Clear input
     setMessage('');
+<<<<<<< HEAD
 
     // Stop typing indicator
     handleTypingIndicator(false);
 
     // Keep focus on input for continuous messaging
+=======
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (isTyping) {
+      setIsTyping(false);
+      onTypingEnd?.();
+    }
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
     inputRef.current?.focus();
   }, [message, isConnected, onSendMessage, handleTypingIndicator]);
 
+<<<<<<< HEAD
   // Handle keyboard submit
   const handleKeyPress = useCallback((e: any) => {
     if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
@@ -192,30 +224,25 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   }, [sendUserTypingIndicator]);
 
   // Handle image selection
+=======
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
   const handleImageSelection = useCallback(async () => {
     if (!isConnected) {
       Alert.alert('Not Connected', 'Please wait for the connection to be established.');
       return;
     }
-
     try {
       setIsProcessingImage(true);
       const imageResult = await ImagePickerService.showImageSourceDialog();
-
-      // Validate the image
       const validation = ImagePickerService.validateImage(imageResult);
       if (!validation.isValid) {
         Alert.alert('Invalid Image', validation.error);
         return;
       }
-
       setSelectedImage(imageResult);
       setShowImagePreview(true);
     } catch (error) {
-      console.error('Error selecting image:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to select image';
-
-      // Don't show alert for user cancellation
       if (!errorMessage.includes('cancelled') && !errorMessage.includes('User cancelled')) {
         Alert.alert('Image Selection Error', errorMessage);
       }
@@ -224,41 +251,18 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     }
   }, [isConnected]);
 
-  // Handle image sending from preview modal
   const handleSendImage = useCallback(async (processedImage: ProcessedImageResult, caption?: string) => {
-    try {
-      // Close the preview modal
-      setShowImagePreview(false);
-      setSelectedImage(null);
-
-      // Send the image using the AgentContext
-      await sendProcessedImage(processedImage, caption);
-
-      console.log('Image sent successfully:', {
-        uri: processedImage.uri,
-        caption,
-        size: processedImage.fileSize,
-        dimensions: `${processedImage.width}x${processedImage.height}`,
-      });
-    } catch (error) {
-      console.error('Error sending image:', error);
-      // The error is already handled in AgentContext, but we can add additional UI feedback here if needed
-    }
+    setShowImagePreview(false);
+    setSelectedImage(null);
+    await sendProcessedImage(processedImage, caption);
   }, [sendProcessedImage]);
 
-  // Handle closing image preview
   const handleCloseImagePreview = useCallback(() => {
     setShowImagePreview(false);
     setSelectedImage(null);
   }, []);
 
   const showSendButton = message.trim().length > 0;
-
-  const getRecordButtonColor = (): string => {
-    if (!isConnected) return colors.textMuted || '#64748b';
-    if (isPressingRecord) return colors.error || '#ef4444';
-    return colors.primary || '#2563eb';
-  };
 
   const formatDuration = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
@@ -269,197 +273,86 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
 
   return (
     <>
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 12),
-        },
-      ]}
-    >
-      {voice.isRecording && (
-        <View style={styles.recordingIndicator}>
-          <View style={[styles.redDot, { backgroundColor: colors.error }]} />
-          <Text style={[styles.recordingText, { color: colors.text }]}>
-            Recording... {formatDuration(voice.recordingDuration)}
-          </Text>
-        </View>
-      )}
-      <View style={styles.inputRow}>
-        {/* Attachment Button */}
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={handleImageSelection}
-          disabled={disabled || isProcessingImage}
-        >
-          <Text style={[styles.buttonIcon, {
-            color: isProcessingImage ? colors.primary : colors.textSecondary,
-            opacity: (disabled || isProcessingImage) ? 0.5 : 1
-          }]}>
-            {isProcessingImage ? '⏳' : '📷'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Text Input */}
-        <View style={[
-          styles.inputContainer,
-          {
-            backgroundColor: colors.backgroundSecondary,
-            borderColor: disabled ? colors.border : colors.primary,
-          }
-        ]}>
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.textInput,
-              {
-                color: colors.text,
-                opacity: disabled ? 0.5 : 1,
-                height: Math.max(24, Math.min(120, message.split('\n').length * 22)),
-              },
-            ]}
-            value={message}
-            onChangeText={handleTextChange}
-            onKeyPress={handleKeyPress}
-            onSubmitEditing={handleSendMessage}
-            placeholder={placeholder}
-            placeholderTextColor={colors.textMuted}
-            multiline
-            maxLength={maxLength}
-            editable={!disabled && !voice.isRecording}
-            blurOnSubmit={false}
-            returnKeyType="send"
-            enablesReturnKeyAutomatically
-            textAlignVertical="center"
-            autoCorrect
-            autoCapitalize="sentences"
-          />
-
-          {/* Character count */}
-          {message.length > maxLength * 0.8 && (
-            <Text style={[
-              styles.characterCount,
-              {
-                color: message.length >= maxLength
-                  ? colors.error || '#ef4444'
-                  : colors.textSecondary,
-              },
-            ]}>
-              {message.length}/{maxLength}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="bg-background dark:bg-backgroundDark border-t border-border dark:border-borderDark"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+      >
+        {voice.isRecording && (
+          <View className="flex-row items-center px-4 pt-2">
+            <View className="w-2 h-2 rounded-full bg-destructive mr-2" />
+            <Text className="text-text dark:text-textDark font-semibold">
+              Recording... {formatDuration(voice.recordingDuration)}
             </Text>
-          )}
+          </View>
+        )}
+        <View className="flex-row items-end p-3 gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onPress={handleImageSelection}
+            disabled={disabled || isProcessingImage}
+            className="bg-backgroundSecondary dark:bg-backgroundSecondaryDark rounded-full w-11 h-11"
+          >
+            {isProcessingImage ? <Spinner size="small" /> : <Text className="text-xl text-textSecondary dark:text-textSecondaryDark">📷</Text>}
+          </Button>
+
+          <View className="flex-1 min-h-[44px] max-h-32 justify-center rounded-2xl border border-border dark:border-borderDark bg-backgroundSecondary dark:bg-backgroundSecondaryDark px-4">
+            <TextInput
+              ref={inputRef}
+              value={message}
+              onChangeText={handleTextChange}
+              onSubmitEditing={handleSendMessage}
+              placeholder={placeholder}
+              placeholderTextColor={'#94a3b8'}
+              multiline
+              maxLength={maxLength}
+              editable={!disabled && !voice.isRecording}
+              blurOnSubmit={false}
+              returnKeyType="send"
+              enablesReturnKeyAutomatically
+              className="text-base text-text dark:text-textDark leading-6"
+              style={{ paddingTop: 0, paddingBottom: 0 }}
+            />
+            {message.length > maxLength * 0.8 && (
+              <Text className={cn(
+                "text-xs absolute bottom-1 right-3",
+                message.length >= maxLength ? "text-destructive" : "text-textSecondary dark:text-textSecondaryDark"
+              )}>
+                {message.length}/{maxLength}
+              </Text>
+            )}
+          </View>
+
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <View {...(!showSendButton ? panResponder.panHandlers : {})}>
+              <Button
+                size="icon"
+                onPress={showSendButton ? handleSendMessage : undefined}
+                disabled={disabled || (showSendButton && message.trim().length === 0)}
+                className={cn(
+                  "w-11 h-11 rounded-full",
+                  showSendButton ? "bg-primary" : "bg-primary",
+                  isPressingRecord && "bg-destructive"
+                )}
+              >
+                <Text className="text-white text-xl font-bold">
+                  {showSendButton ? '➤' : '🎤'}
+                </Text>
+              </Button>
+            </View>
+          </Animated.View>
         </View>
+      </KeyboardAvoidingView>
 
-        {/* Dynamic Send/Record Button */}
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: showSendButton ? colors.primary : getRecordButtonColor(),
-              borderColor: showSendButton ? colors.primary : colors.border,
-              transform: [{ scale: isPressingRecord ? 1.1 : 1 }],
-            },
-          ]}
-          onPress={showSendButton ? handleSendMessage : undefined}
-          {...(!showSendButton ? panResponder.panHandlers : {})}
-          disabled={disabled || (showSendButton && message.trim().length === 0)}
-          activeOpacity={0.8}
-        >
-          <Text style={[
-            styles.buttonIcon,
-            {
-              color: 'white',
-            },
-          ]}>
-            {showSendButton ? '➤' : '🎤'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
-
-    {/* Image Preview Modal */}
-    <ImagePreviewModal
-      visible={showImagePreview}
-      image={selectedImage}
-      onClose={handleCloseImagePreview}
-      onSend={handleSendImage}
-    />
+      <ImagePreviewModal
+        visible={showImagePreview}
+        image={selectedImage}
+        onClose={handleCloseImagePreview}
+        onSend={handleSendImage}
+      />
     </>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    borderTopWidth: 1,
-  },
-  recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  redDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  recordingText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 12,
-    gap: 8,
-  },
-  actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  buttonIcon: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  inputContainer: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    justifyContent: 'center',
-  },
-  textInput: {
-    fontSize: 16,
-    lineHeight: 22,
-    flex: 1,
-    minHeight: 24,
-    textAlignVertical: 'center',
-    paddingTop: 0,
-    paddingBottom: 0,
-  },
-  characterCount: {
-    fontSize: 11,
-    position: 'absolute',
-    bottom: 4,
-    right: 12,
-  },
-});
 
 export default MultimodalInput;

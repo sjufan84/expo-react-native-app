@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Animated } from 'react-native';
 import { SessionType, SessionState } from '../../types/message.types';
+import { cn } from '../../utils/cn';
 
 interface SessionIndicatorProps {
   sessionType: SessionType;
@@ -14,30 +14,21 @@ const SessionIndicator: React.FC<SessionIndicatorProps> = ({
   sessionState,
   isRecording = false,
 }) => {
-  const { theme } = useTheme();
-  const [pulseAnim] = useState(new Animated.Value(1));
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Pulse animation for active sessions
   useEffect(() => {
-    if (sessionState === 'active') {
+    if (sessionState === 'active' && isRecording) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     } else {
+      pulseAnim.stopAnimation();
       pulseAnim.setValue(1);
     }
-  }, [sessionState, pulseAnim]);
+  }, [sessionState, isRecording, pulseAnim]);
 
   if (!sessionType || sessionState === 'idle') {
     return null;
@@ -45,85 +36,48 @@ const SessionIndicator: React.FC<SessionIndicatorProps> = ({
 
   const getSessionLabel = (): string => {
     if (sessionState === 'ending') return 'Ending...';
-    
     switch (sessionType) {
-      case 'text':
-        return 'Text Session';
-      case 'voice-ptt':
-        return isRecording ? 'Recording...' : 'Push to Talk';
-      case 'voice-vad':
-        return isRecording ? 'Recording...' : 'Voice Active';
-      default:
-        return 'Active';
+      case 'text': return 'Text Session';
+      case 'voice-ptt': return isRecording ? 'Recording' : 'Push to Talk';
+      case 'voice-vad': return isRecording ? 'Recording' : 'Voice Active';
+      default: return 'Active';
     }
-  };
-
-  const getSessionColor = (): string => {
-    if (sessionState === 'ending') return theme.colors.textMuted;
-    if (isRecording) return theme.colors.error || '#ef4444';
-    return theme.colors.success || '#10b981';
   };
 
   const getSessionIcon = (): string => {
     if (sessionState === 'ending') return '⏹️';
-    
     switch (sessionType) {
-      case 'text':
-        return '💬';
+      case 'text': return '💬';
       case 'voice-ptt':
-        return isRecording ? '🔴' : '🎙️';
       case 'voice-vad':
-        return isRecording ? '🔴' : '🎤';
-      default:
-        return '✨';
+        return isRecording ? '🔴' : '🎙️';
+      default: return '✨';
     }
   };
 
+  const indicatorColorClass =
+    sessionState === 'ending' ? 'bg-textMuted' :
+    isRecording ? 'bg-destructive' :
+    'bg-success';
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}>
-      <Animated.View
-        style={[
-          styles.indicator,
-          {
-            backgroundColor: getSessionColor(),
-            transform: [{ scale: sessionState === 'active' && isRecording ? pulseAnim : 1 }],
-          },
-        ]}
-      />
-      <Text style={[styles.icon]}>
+    <View
+      className={cn(
+        'flex-row items-center gap-2 self-start rounded-full border px-3 py-1.5',
+        'border-border bg-backgroundSecondary dark:border-borderDark dark:bg-backgroundSecondaryDark'
+      )}
+    >
+      <Animated.View style={[{ transform: [{ scale: pulseAnim }] }]}>
+        <View className={cn('h-2 w-2 rounded-full', indicatorColorClass)} />
+      </Animated.View>
+      <Text className="text-base" allowFontScaling={false}>
         {getSessionIcon()}
       </Text>
-      <Text style={[styles.label, { color: theme.colors.text }]}>
+      <Text className="text-sm font-semibold text-text dark:text-textDark">
         {getSessionLabel()}
       </Text>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 8,
-    alignSelf: 'flex-start',
-  },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  icon: {
-    fontSize: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});
-
 export default SessionIndicator;
-

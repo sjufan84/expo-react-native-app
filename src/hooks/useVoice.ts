@@ -35,7 +35,7 @@ export interface UseVoiceReturn {
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   toggleRecording: () => Promise<void>;
-  toggleMute: () => void;
+  toggleMute: (force?: boolean) => void;
   setVoiceMode: (mode: 'push-to-talk' | 'continuous') => void;
 
   // Push-to-talk specific
@@ -414,8 +414,8 @@ export const useVoice = (): UseVoiceReturn => {
   }, [isRecording, startRecording, stopRecording]);
 
   // Toggle mute
-  const toggleMute = useCallback((): void => {
-    const newMutedState = !isMuted;
+  const toggleMute = useCallback((force?: boolean): void => {
+    const newMutedState = force === undefined ? !isMuted : force;
 
     // Mute both the audio service and the LiveKit track
     audioService.setMuted(newMutedState);

@@ -274,6 +274,10 @@ interface AgentContextType extends AgentState {
   getErrorStats: () => any;
   resetCircuitBreaker: (category?: string) => void;
 
+  // Direct state manipulation
+  addMessage: (message: Message) => void;
+  updateMessageStatus: (messageId: string, status: Message['status']) => void;
+
   // Connection Status
   connectionState: ConnectionState;
 }
@@ -287,7 +291,6 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const liveKit = useLiveKit();
 
   // Development mode: simulate connection for testing
-  const [isDevMode, setIsDevMode] = useState(__DEV__);
   const [mockConnected, setMockConnected] = useState(false);
 
   // Initialize session synchronization and retry queue on mount
@@ -893,6 +896,14 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [liveKit]);
 
+  const addMessage = useCallback((message: Message) => {
+    dispatch({ type: 'ADD_MESSAGE', payload: message });
+  }, []);
+
+  const updateMessageStatus = useCallback((messageId: string, status: Message['status']) => {
+    dispatch({ type: 'UPDATE_MESSAGE', payload: { id: messageId, updates: { status } } });
+  }, []);
+
   // Set input mode
   const setInputMode = useCallback((mode: InputMode) => {
     dispatch({ type: 'SET_INPUT_MODE', payload: mode });
@@ -1172,6 +1183,8 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     clearActiveErrors,
     getErrorStats: getErrorStatsCallback,
     resetCircuitBreaker,
+    addMessage,
+    updateMessageStatus,
   };
 
   return (

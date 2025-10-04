@@ -1,82 +1,59 @@
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
   Alert,
   FlatList,
 } from 'react-native';
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgent } from '../context/AgentContext';
-import { ThemeProvider } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import ConnectionStatus from '../components/shared/ConnectionStatus';
 import MessageBubble from '../components/chat/MessageBubble';
 import MultimodalInput from '../components/chat/MultimodalInput';
 import SessionIndicator from '../components/shared/SessionIndicator';
 import VoiceSessionControls from '../components/voice/VoiceSessionControls';
 import TypingIndicator from '../components/chat/TypingIndicator';
+import EmptyState from '../components/shared/EmptyState';
 import { Message } from '../types/message.types';
 import { useVoice } from '../hooks/useVoice';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { useColorScheme } from 'nativewind';
 
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { isConnected, sendMessage, session, endSession, typingState, sendAgentTypingIndicator } = useAgent();
+  const { isConnected, sendMessage, session, endSession, typingState, sendAgentTypingIndicator, messages, addMessage, updateMessageStatus } = useAgent();
+  const { colorScheme } = useColorScheme();
   const voice = useVoice();
-  const [messages, setMessages] = useState<Message[]>([]);
   const flatListRef = useRef<FlatList>(null);
-  const insets = useSafeAreaInsets();
 
-  // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  // Add a message to the chat
-  const addMessage = useCallback((content: string, sender: 'user' | 'agent', type: 'text' | 'image' | 'voice' = 'text', status: 'sending' | 'sent' | 'failed' = 'sent') => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      sender,
-      content,
-      timestamp: new Date(),
-      status,
-      type,
-    };
-    setMessages(prev => [...prev, newMessage]);
-
-    // Auto-scroll to new message
-    scrollToBottom();
-  }, [scrollToBottom]);
-
-  // Send text message via LiveKit
   const handleSendMessage = useCallback(async (text: string) => {
     if (!isConnected) {
-      Alert.alert('Not Connected', 'Please wait for the connection to be established.');
+      Alert.alert('Not Connected', 'Please wait for connection.');
       return;
     }
-
-    // Add message with "sending" status
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    const tempId = `msg_${Date.now()}`;
+    addMessage({
+      id: tempId,
       sender: 'user',
       content: text,
       timestamp: new Date(),
       status: 'sending',
       type: 'text',
-    };
-    setMessages(prev => [...prev, userMessage]);
+    });
     scrollToBottom();
 
     try {
-      // Send message via LiveKit
       await sendMessage(text, 'text');
+<<<<<<< HEAD
 
       // Update message status to "sent"
       setMessages(prev =>
@@ -101,29 +78,28 @@ const ChatScreen: React.FC = () => {
         sendAgentTypingIndicator(false); // Stop typing indicator
       }, 1500 + Math.random() * 2000); // Random delay between 1.5-3.5 seconds
 
+=======
+      updateMessageStatus(tempId, 'sent');
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Update message status to "failed"
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === userMessage.id
-            ? { ...msg, status: 'failed' as const }
-            : msg
-        )
-      );
-      Alert.alert('Send Failed', 'Failed to send message. Please try again.');
+      updateMessageStatus(tempId, 'failed');
+      Alert.alert('Send Failed', 'Could not send message. Please try again.');
     }
-  }, [isConnected, sendMessage, addMessage, scrollToBottom]);
+  }, [isConnected, sendMessage, addMessage, updateMessageStatus, scrollToBottom]);
 
-  // Handle sending a voice message
   const handleSendVoiceMessage = useCallback(() => {
-    addMessage('Voice message sent', 'user', 'voice');
-    // Simulate agent response
-    setTimeout(() => {
-      addMessage('I heard your voice message! How can I help with your cooking?', 'agent');
-    }, 1000);
+    addMessage({
+      id: `msg_${Date.now()}`,
+      sender: 'user',
+      content: 'Voice message',
+      timestamp: new Date(),
+      status: 'sent',
+      type: 'voice',
+    });
   }, [addMessage]);
 
+<<<<<<< HEAD
   // Handle typing indicators - these are now handled by the AgentContext and MultimodalInput
   const handleTypingStart = useCallback(() => {
     // This callback is mainly for legacy compatibility
@@ -142,156 +118,90 @@ const ChatScreen: React.FC = () => {
     // Navigate to settings (to be implemented)
     Alert.alert('Settings', 'Settings screen coming soon!');
   };
+=======
+  const suggestedPrompts = [
+    { text: "How do I make perfect sourdough?", action: () => handleSendMessage("How do I make perfect sourdough?") },
+    { text: "Show me your bread technique", action: () => handleSendMessage("Show me your bread technique") },
+  ];
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }] } edges={['top','bottom']}>
-      <StatusBar
-        barStyle={theme.colors.background === '#ffffff' ? 'dark-content' : 'light-content'}
-        backgroundColor={theme.colors.background}
-      />
+    <SafeAreaView className="flex-1 bg-background dark:bg-backgroundDark" edges={['top', 'bottom']}>
+      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      <ConnectionStatus onRetry={() => Alert.alert('Retry', 'Implement retry logic.')} />
 
-      {/* Connection Status Banner */}
-      <ConnectionStatus
-        onRetry={() => {
-          if (!isConnected) {
-            // For now, we'll show an alert since connect() requires a token
-            Alert.alert('Connection', 'LiveKit connection requires a server token. Please implement backend authentication.');
-          }
-        }}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border, paddingTop: Math.max(insets.top * 0.25, 4) }]}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            BakeBot
-          </Text>
-          <SessionIndicator
-            sessionType={session.type}
-            sessionState={session.state}
-            isRecording={voice.isRecording}
-          />
+      <View className="flex-row items-center justify-between px-4 py-2 border-b border-border dark:border-borderDark">
+        <View className="flex-row items-center gap-3">
+          <Text className="text-xl font-bold text-text dark:text-textDark">BakeBot</Text>
+          <SessionIndicator sessionType={session.type} sessionState={session.state} isRecording={voice.isRecording} />
         </View>
-        <View style={styles.headerRight}>
-          {session.state === 'active' && (
-            <TouchableOpacity
-              style={[styles.endSessionButton, { backgroundColor: theme.colors.error }]}
-              onPress={endSession}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.endSessionText}>End</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
-            <Text style={[styles.settingsText, { color: theme.colors.textSecondary }]}>
-              ⚙️
-            </Text>
-          </TouchableOpacity>
+        <View className="flex-row items-center gap-2">
+          {session.state === 'active' && <Button variant="destructive" size="sm" onPress={endSession}>End</Button>}
+          <Button variant="ghost" size="icon" onPress={() => Alert.alert('Settings', 'Settings screen coming soon!')}>
+            <Text className="text-xl">⚙️</Text>
+          </Button>
         </View>
       </View>
 
-      {/* Messages Area */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -insets.bottom}
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: -500 })}
       >
-        <View style={[styles.messagesContainer, { backgroundColor: theme.colors.background }]}>
+        <View className="flex-1 justify-between">
           {messages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
-                👋 Welcome to BakeBot!
-              </Text>
-              <Text style={[styles.emptyStateSubtitle, { color: theme.colors.textSecondary }]}>
-                I'm your AI sous chef. How can I help you today?
-              </Text>
-              <View style={styles.suggestedPrompts}>
-                <TouchableOpacity
-                  style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                  onPress={() => handleSendMessage("How do I make perfect sourdough?")}
-                >
-                  <Text style={[styles.promptText, { color: theme.colors.text }]}>
-                    "How do I make perfect sourdough?"
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                  onPress={() => handleSendMessage("Show me your bread technique")}
-                >
-                  <Text style={[styles.promptText, { color: theme.colors.text }]}>
-                    "Show me your bread technique"
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <EmptyState
+              title="👋 Welcome to BakeBot!"
+              subtitle="I'm your AI sous chef. How can I help you today?"
+              prompts={suggestedPrompts}
+            />
           ) : (
             <FlatList
               ref={flatListRef}
               data={messages}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <MessageBubble
-                  message={item}
-                  isUser={item.sender === 'user'}
-                  showAvatar={true}
-                  showTimestamp={true}
-                  onPress={() => {
-                    // Handle message press (e.g., copy, reply)
-                    console.log('Message pressed:', item);
-                  }}
-                  onLongPress={() => {
-                    Alert.alert(
-                      'Message Options',
-                      `From: ${item.sender === 'user' ? 'You' : 'BakeBot'}\nTime: ${item.timestamp.toLocaleTimeString()}`,
-                      [
-                        { text: 'Copy', onPress: () => console.log('Copy message') },
-                        { text: 'Delete', onPress: () => console.log('Delete message'), style: 'destructive' },
-                        { text: 'Cancel', style: 'cancel' },
-                      ]
-                    );
-                  }}
-                />
+                <MessageBubble message={item} isUser={item.sender === 'user'} />
               )}
-              style={styles.messagesList}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingVertical: 8, gap: 4 }}
               onContentSizeChange={scrollToBottom}
+              onLayout={scrollToBottom}
+              showsVerticalScrollIndicator={false}
             />
           )}
 
+<<<<<<< HEAD
           {/* Typing Indicators */}
           <TypingIndicator
             typingState={typingState}
             showUserTyping={false} // Hide user typing indicator in chat (it's shown in input)
             isUser={false}
           />
+=======
+          {session.isAgentTyping && (
+            <View className="px-4 pb-1 self-start">
+               <Badge label="BakeBot is typing..." variant="secondary" className="bg-agentMessage dark:bg-agentMessageDark" />
+            </View>
+          )}
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
         </View>
 
-        {/* Voice Session Controls */}
-        {session.state === 'active' && (session.type === 'voice-ptt' || session.type === 'voice-vad') && (
-          <View style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-            <VoiceSessionControls onEndSession={endSession} />
-          </View>
-        )}
-
-        {/* Input */}
-        {session.state !== 'active' || session.type === 'text' ? (
+        {session.state === 'active' && (session.type === 'voice-ptt' || session.type === 'voice-vad') ? (
+          <VoiceSessionControls onEndSession={endSession} />
+        ) : (
           <MultimodalInput
             onSendMessage={handleSendMessage}
             onSendVoiceMessage={handleSendVoiceMessage}
-            onTypingStart={handleTypingStart}
-            onTypingEnd={handleTypingEnd}
             placeholder="Ask BakeBot..."
-            maxLength={1000}
             disabled={!isConnected}
           />
-        ) : null}
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
+<<<<<<< HEAD
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -385,3 +295,6 @@ const ChatScreenWithTheme: React.FC = () => {
 };
 
 export default ChatScreenWithTheme;
+=======
+export default ChatScreen;
+>>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
