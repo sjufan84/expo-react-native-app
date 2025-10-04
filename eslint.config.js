@@ -1,3 +1,4 @@
+import globals from 'globals';
 import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
@@ -15,12 +16,19 @@ export default [
           jsx: true,
         },
       },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.jest,
+        'React': 'readonly',
+      },
     },
     plugins: {
       '@typescript-eslint': typescript,
     },
     rules: {
       ...typescript.configs.recommended.rules,
+      'no-undef': 'off', // Handled by TypeScript
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
     },

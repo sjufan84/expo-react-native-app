@@ -8,16 +8,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useAgent } from '../../context/AgentContext';
+import { useVoice } from '../../hooks/useVoice';
 import { ImagePickerService } from '../../services/ImagePickerService';
 import { ImageResult, ProcessedImageResult } from '../../types/message.types';
 import ImagePreviewModal from './ImagePreviewModal';
 
-interface MessageInputProps {
+interface MultimodalInputProps {
   onSendMessage: (message: string) => void;
+  onSendVoiceMessage: () => void;
   onTypingStart?: () => void;
   onTypingEnd?: () => void;
   placeholder?: string;
@@ -25,8 +29,9 @@ interface MessageInputProps {
   disabled?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({
+const MultimodalInput: React.FC<MultimodalInputProps> = ({
   onSendMessage,
+  onSendVoiceMessage,
   onTypingStart,
   onTypingEnd,
   placeholder = 'Type a message...',
@@ -35,16 +40,50 @@ const MessageInput: React.FC<MessageInputProps> = ({
 }) => {
   const { theme } = useTheme();
   const { isConnected, sendProcessedImage } = useAgent();
+  const voice = useVoice();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageResult | null>(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isPressingRecord, setIsPressingRecord] = useState(false);
+  const pressStartTime = useRef(0);
   const inputRef = useRef<TextInput>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const insets = useSafeAreaInsets();
 
   const colors = theme.colors as any;
+
+  // Pan responder for push-to-talk voice recording
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !disabled && message.trim().length === 0,
+      onMoveShouldSetPanResponder: () => false,
+      onPanResponderGrant: () => {
+        if (voice.isRecording) return;
+        setIsPressingRecord(true);
+        pressStartTime.current = Date.now();
+        voice.startRecording();
+      },
+      onPanResponderRelease: () => {
+        if (!voice.isRecording) return;
+
+        const pressDuration = Date.now() - pressStartTime.current;
+        setIsPressingRecord(false);
+        voice.stopRecording();
+
+        if (pressDuration > 300) { // Avoid accidental taps
+          onSendVoiceMessage();
+        }
+      },
+      onPanResponderTerminate: () => {
+        if (voice.isRecording) {
+          setIsPressingRecord(false);
+          voice.stopRecording();
+        }
+      },
+    })
+  ).current;
 
   // Handle typing indicators with debouncing
   const handleTypingStart = useCallback(() => {
@@ -202,7 +241,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setSelectedImage(null);
   }, []);
 
-  const canSend = message.trim().length > 0 && isConnected && !disabled;
+  const showSendButton = message.trim().length > 0;
+
+  const getRecordButtonColor = (): string => {
+    if (!isConnected) return colors.textMuted || '#64748b';
+    if (isPressingRecord) return colors.error || '#ef4444';
+    return colors.primary || '#2563eb';
+  };
+
+  const formatDuration = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   return (
     <>
@@ -213,15 +265,23 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom + 8, 20), // Account for Android navigation controls
+          paddingBottom: Math.max(insets.bottom, 12),
         },
       ]}
     >
+      {voice.isRecording && (
+        <View style={styles.recordingIndicator}>
+          <View style={[styles.redDot, { backgroundColor: colors.error }]} />
+          <Text style={[styles.recordingText, { color: colors.text }]}>
+            Recording... {formatDuration(voice.recordingDuration)}
+          </Text>
+        </View>
+      )}
       <View style={styles.inputRow}>
         {/* Attachment Button */}
         <TouchableOpacity
           style={[
-            styles.attachButton,
+            styles.actionButton,
             {
               backgroundColor: colors.backgroundSecondary,
               borderColor: colors.border,
@@ -230,7 +290,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onPress={handleImageSelection}
           disabled={disabled || isProcessingImage}
         >
-          <Text style={[styles.attachIcon, {
+          <Text style={[styles.buttonIcon, {
             color: isProcessingImage ? colors.primary : colors.textSecondary,
             opacity: (disabled || isProcessingImage) ? 0.5 : 1
           }]}>
@@ -252,8 +312,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
               styles.textInput,
               {
                 color: colors.text,
-                opacity: disabled ? 0.5 : 1, // Ensure text is visible
-                height: Math.max(24, Math.min(120, message.split('\n').length * 22)), // Dynamic height
+                opacity: disabled ? 0.5 : 1,
+                height: Math.max(24, Math.min(120, message.split('\n').length * 22)),
               },
             ]}
             value={message}
@@ -264,7 +324,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={maxLength}
-            editable={!disabled}
+            editable={!disabled && !voice.isRecording}
             blurOnSubmit={false}
             returnKeyType="send"
             enablesReturnKeyAutomatically
@@ -288,42 +348,31 @@ const MessageInput: React.FC<MessageInputProps> = ({
           )}
         </View>
 
-        {/* Send Button */}
+        {/* Dynamic Send/Record Button */}
         <TouchableOpacity
           style={[
-            styles.sendButton,
+            styles.actionButton,
             {
-              backgroundColor: canSend
-                ? colors.primary
-                : colors.backgroundSecondary,
-              borderColor: colors.border,
+              backgroundColor: showSendButton ? colors.primary : getRecordButtonColor(),
+              borderColor: showSendButton ? colors.primary : colors.border,
+              transform: [{ scale: isPressingRecord ? 1.1 : 1 }],
             },
           ]}
-          onPress={handleSendMessage}
-          disabled={!canSend}
+          onPress={showSendButton ? handleSendMessage : undefined}
+          {...(!showSendButton ? panResponder.panHandlers : {})}
+          disabled={disabled || (showSendButton && message.trim().length === 0)}
           activeOpacity={0.8}
         >
           <Text style={[
-            styles.sendIcon,
+            styles.buttonIcon,
             {
-              color: canSend
-                ? 'white'
-                : colors.textMuted,
+              color: 'white',
             },
           ]}>
-            ➤
+            {showSendButton ? '➤' : '🎤'}
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Connection Status in Input */}
-      {!isConnected && (
-        <View style={[styles.connectionStatus, { backgroundColor: colors.error || '#ef4444' }]}>
-          <Text style={[styles.connectionStatusText, { color: 'white' }]}>
-            🔴 Disconnected - Reconnecting...
-          </Text>
-        </View>
-      )}
     </KeyboardAvoidingView>
 
     {/* Image Preview Modal */}
@@ -341,13 +390,29 @@ const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
   },
+  recordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  redDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  recordingText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 12,
     gap: 8,
   },
-  attachButton: {
+  actionButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -355,27 +420,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  attachIcon: {
+  buttonIcon: {
     fontSize: 18,
+    fontWeight: 'bold',
   },
   inputContainer: {
     flex: 1,
     minHeight: 44,
-    maxHeight: 120, // Limit height to prevent input from taking too much space
+    maxHeight: 120,
     borderRadius: 20,
     borderWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10, // Balanced padding for text visibility
-    justifyContent: 'center', // Center content vertically
+    paddingVertical: 10,
+    justifyContent: 'center',
   },
   textInput: {
     fontSize: 16,
-    lineHeight: 22, // Increased line height for better spacing
+    lineHeight: 22,
     flex: 1,
-    minHeight: 24, // Minimum height for single line
-    textAlignVertical: 'center', // Center text vertically for better visibility
-    paddingTop: 0, // Remove extra padding
-    paddingBottom: 0, // Remove extra padding
+    minHeight: 24,
+    textAlignVertical: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   characterCount: {
     fontSize: 11,
@@ -383,27 +449,6 @@ const styles = StyleSheet.create({
     bottom: 4,
     right: 12,
   },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  sendIcon: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  connectionStatus: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  connectionStatusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
 });
 
-export default MessageInput;
+export default MultimodalInput;

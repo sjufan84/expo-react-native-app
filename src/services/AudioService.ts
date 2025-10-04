@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+
 import { Room, LocalAudioTrack } from 'livekit-client';
 import { AUDIO_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 

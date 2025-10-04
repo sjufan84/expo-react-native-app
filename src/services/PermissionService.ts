@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+
 import { Platform, Alert, Linking, PermissionsAndroid } from 'react-native';
 import { PERMISSIONS, ERROR_MESSAGES } from '../utils/constants';
 

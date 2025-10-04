@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { Room, RemoteParticipant } from 'livekit-client';

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable no-undef */
+
 import React, { createContext, useContext, useReducer, useCallback, useState, ReactNode } from 'react';
 import { useLiveKit } from '../hooks/useLiveKit';
 import { Message, InputMode, DataChannelMessage, ConnectionState, ProcessedImageResult, ImageMessageData } from '../types/message.types';
