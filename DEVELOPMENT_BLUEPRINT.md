@@ -262,62 +262,112 @@ any relevant notes, issues encountered, etc.
 
 ---
 
-### FR-6: Multimodal Integration
-**Objective:** Enable seamless switching and combination of communication modes.
+I'll help you revise FR-6 to address the multimodal communication challenge. Based on the LiveKit documentation, here's my analysis and recommendation:
 
-**Implementation Requirements:**
+## Key Technical Considerations
 
-1. **Unified Input Component Architecture:**
-   ```typescript
-   interface InputMode {
-     type: 'voice' | 'text' | 'image';
-     isActive: boolean;
-   }
-   
-   interface MultimodalInputProps {
-     currentMode: InputMode;
-     onModeChange: (mode: InputMode) => void;
-     onSendText: (text: string) => void;
-     onSendVoice: (audio: AudioData) => void;
-     onSendImage: (image: ImageData) => void;
-   }
-   ```
+LiveKit Agents supports multiple communication modes:
+- **Voice**: Real-time audio via STT/TTS pipeline
+- **Text**: Text streams for chat-style communication
+- **Vision**: Image/video input for visual context
+- **Data**: For file/image attachments
 
-2. **Mode Switching Logic:**
-   - Display mode selector with three options: voice, text, image
-   - Allow switching at any time (except during active voice recording)
-   - Persist user's preferred mode using AsyncStorage
-   - Auto-switch to text mode if voice permissions denied
+The challenge is making these modes work seamlessly together without creating UI confusion or technical conflicts.
 
-3. **Simultaneous Mode Support:**
-   - Allow text input while voice connection is active
-   - Allow image sharing in any mode
-   - Maintain conversation context across all modes
-   - Display all interactions in unified timeline
+## Revised FR-6: Multimodal Communication Interface
 
-4. **Context Preservation:**
-   - Maintain single conversation thread regardless of input mode
-   - Include mode metadata in messages:
-     ```typescript
-     {
-       id: string;
-       mode: 'voice' | 'text' | 'image';
-       content: string | AudioData | ImageData;
-       timestamp: Date;
-     }
-     ```
-   - Agent should understand and respond appropriately to all modes
+### Design Philosophy
+Create a unified communication interface that adapts based on user input rather than forcing mode selection upfront.
 
-5. **Smart Mode Suggestions:**
-   - Suggest image mode when agent asks "Can you show me..."
-   - Suggest voice mode for longer conversations
-   - Display subtle UI hints (tooltips, animations)
+### Technical Implementation
 
-**Success Criteria:**
-- Modes switch without disrupting conversation
-- All input types appear correctly in timeline
-- Context is maintained across mode switches
-- User preference is remembered
+**1. Simultaneous Input Channels**
+```
+- Audio input: Always listening (with visual indicator)
+- Text input: Always available in chat interface
+- Image attachment: Button/drag-drop available at all times
+```
+
+**2. Agent Processing Strategy**
+The LiveKit agent should handle inputs through a unified pipeline:
+- Text messages → Direct to LLM (bypasses STT)
+- Voice → STT → LLM → TTS (standard voice pipeline)
+- Images → Vision model + context to LLM
+- All modalities share the same conversation context
+
+**3. Response Mode Intelligence**
+The agent responds based on how the user communicated:
+- User spoke → Agent responds with voice
+- User typed → Agent responds with text (optional: also speak)
+- User sent image → Agent analyzes and responds in the same mode user initiated
+
+**4. UI/UX Pattern**
+
+```
+┌─────────────────────────────────┐
+│  Session View                   │
+│  ┌───────────────────────────┐  │
+│  │ Conversation History      │  │
+│  │ (shows text + audio msgs) │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  [📎] [Type message...] [🎤]   │
+│   ↑         ↑            ↑     │
+│  Image    Text        Voice    │
+└─────────────────────────────────┘
+```
+
+**5. Context Preservation**
+- All interactions (voice, text, images) append to a unified conversation history
+- Agent maintains full context regardless of input mode
+- Visual indicator shows which mode is currently active
+
+### Implementation Steps
+
+**Phase 1: Core Infrastructure**
+- Set up LiveKit room with data channels enabled
+- Configure agent with both voice pipeline and text stream handlers
+- Implement vision input handling (image attachment via data streams)
+
+**Phase 2: Input Handling**
+- Wire up microphone permission and continuous VAD
+- Add text input with real-time send
+- Implement image upload via byte streams
+- Ensure all three inputs can be active simultaneously
+
+**Phase 3: Agent Logic**
+- Build message router that directs inputs to appropriate pipeline
+- Implement context merging across all modalities
+- Add response mode selection logic
+- Handle interruptions gracefully (e.g., user speaks while agent is typing)
+
+**Phase 4: User Experience**
+- Visual feedback for active input mode
+- Conversation history showing all message types
+- Smooth transitions between modes
+- Clear indicators of agent processing state
+
+### Key LiveKit Features to Use
+
+- **Text Streams** (`home/client/data/text-streams.md`): For text chat
+- **Byte Streams** (`home/client/data/byte-streams.md`): For image attachments
+- **Vision** (`agents/build/vision.md`): For image analysis
+- **Audio Pipeline**: Standard STT→LLM→TTS
+- **Events** (`home/client/events.md`): For coordinating state
+
+### Edge Cases to Handle
+
+1. **Simultaneous Input**: User speaks while typing → Voice takes priority
+2. **Mode Switching**: User switches mid-conversation → Context preserved
+3. **Image + Text**: User sends image with caption → Both processed together
+4. **Interruptions**: User interrupts agent speech with text → Agent stops and processes text
+
+### Benefits of This Approach
+
+- **No Mode Switching**: User never has to explicitly choose a mode
+- **Natural Flow**: Communicate however feels natural in the moment
+- **Full Context**: Agent "remembers" everything regardless of modality
+- **Accessibility**: Users can use whatever input method works best for them
 
 ---
 
