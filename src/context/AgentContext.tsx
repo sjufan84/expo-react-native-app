@@ -255,12 +255,28 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
 
       console.log(`Starting ${type} session${voiceMode ? ` with ${voiceMode} mode` : ''}`);
-      
-      // Dispatch session start
-      dispatch({ 
-        type: 'START_SESSION', 
-        payload: { type, voiceMode } 
+
+      // Dispatch session start locally
+      dispatch({
+        type: 'START_SESSION',
+        payload: { type, voiceMode }
       });
+
+      // Send session start message to agent
+      const sessionMessage: DataChannelMessage = {
+        type: 'control',
+        payload: {
+          action: 'start_session',
+          session_type: type,
+          voice_mode: voiceMode,
+          user_id: 'user-' + Date.now(), // Generate unique user ID
+          turn_detection: type === 'voice-ptt' ? 'client' : type === 'voice-vad' ? 'server' : 'none'
+        },
+        timestamp: Date.now(),
+        messageId: generateMessageId(),
+      };
+
+      await liveKit.sendData(sessionMessage);
 
       // Configure LiveKit room based on session type
       if (type === 'voice-ptt' || type === 'voice-vad') {
@@ -274,7 +290,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.error('Failed to start session:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to start session' });
     }
-  }, [state.isConnected, state.session.state]);
+  }, [state.isConnected, state.session.state, liveKit]);
 
   // End the current session
   const endSession = useCallback(async () => {
@@ -289,6 +305,22 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // Set session state to ending
       dispatch({ type: 'UPDATE_SESSION', payload: { state: 'ending' } });
 
+      // Send session end message to agent
+      const sessionMessage: DataChannelMessage = {
+        type: 'control',
+        payload: {
+          action: 'end_session',
+        },
+        timestamp: Date.now(),
+        messageId: generateMessageId(),
+      };
+
+      try {
+        await liveKit.sendData(sessionMessage);
+      } catch (error) {
+        console.warn('Failed to send session end message:', error);
+      }
+
       // Cleanup based on session type
       if (state.session.type === 'voice-ptt' || state.session.type === 'voice-vad') {
         // Cleanup audio resources
@@ -296,7 +328,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         // TODO: Cleanup audio when integrated with LiveKit
       }
 
-      // End the session
+      // End the session locally
       dispatch({ type: 'END_SESSION' });
 
       console.log('✅ Session ended successfully');
@@ -304,7 +336,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.error('Failed to end session:', error);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to end session' });
     }
-  }, [state.session.state, state.session.type]);
+  }, [state.session.state, state.session.type, liveKit]);
 
   // Update session configuration
   const updateSession = useCallback((updates: Partial<SessionConfig>) => {

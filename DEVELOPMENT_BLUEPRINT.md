@@ -462,6 +462,55 @@ The agent responds based on how the user communicated:
 
 ---
 
+### FR-7.5: LiveKit Interaction Readiness Review
+**Objective:** Validate and sign off the end-to-end readiness of all LiveKit-powered interactions across frontend and backend so users experience seamless conversations with BakeBot.
+
+**Notes:** Use `DEVELOPMENT_STATUS.md` to align on what is already complete (FR-2 through FR-7 and backend work) and to capture any gaps, defects, or follow-ups discovered during this review.
+
+**Implementation Requirements:**
+
+1. **Cross-Document Alignment**
+   - Review `DEVELOPMENT_STATUS.md` to confirm current completion states and recent fixes.
+   - Create a short delta list of anything implemented in code that is missing from the blueprint or status, and vice versa.
+
+2. **Frontend Verification (App → LiveKit)**
+   - Connection lifecycle: connect, reconnect (exponential backoff), disconnect; verify `ConnectionStatus` banner timing and colors.
+   - Audio pipeline: publish `LocalAudioTrack`, subscribe to agent audio, audio focus handling, mute/unmute, PTT and VAD behavior, waveform accuracy and update cadence.
+   - Text pipeline: reliable data channel send/receive, message status transitions (sending → sent → failed with retry), typing indicators debounce, ordering and timestamp formatting, keyboard handling.
+   - Image pipeline: permission flows, selection (camera/gallery), compression settings (≤1920px, 80% JPEG), base64/chunking transmit, progress UI, inline display and fullscreen viewer with caching.
+   - Session management: start/end/update control messages, `voice-ptt` vs `voice-vad` vs `text` defaults (turn detection modes), session-aware UI (input vs voice controls), safe-area layout, End Session flows.
+   - Permissions and errors: microphone/camera/photo library rationale and deep links; verify all error messages have recovery actions.
+
+3. **Backend Verification (Agent ↔ LiveKit)**
+   - Room join and track handling: agent subscribes/publishes as expected; stable under reconnect.
+   - DataChannel contract: conforms to `DataChannelMessage` schema (text, image, control), tolerant to unknown optional fields; control messages update session state correctly.
+   - Voice pipeline: STT → LLM → TTS loop; handles interruptions (barge-in) and restarts cleanly; target median round-trip latency ≤500ms on local network.
+   - Vision pipeline: receives image + caption + metadata, performs analysis, returns response with appropriate modality.
+   - Error handling: graceful degradation, structured logging without secrets, retry policies for transient failures.
+
+4. **Protocol & Schema Contracts**
+   - Freeze the message schema used on data channels (keys, types, optional fields) and document it in both frontend and backend repos.
+   - Add versioning or capability flags if needed for future compatibility.
+
+5. **End-to-End Test Plan (Manual + Automated)**
+   - Manual scenarios on Android and iOS dev clients: initial connect; text-only chat; PTT flow; VAD flow; image+caption; switch modalities mid-session; interrupt agent speech with text and with voice; network loss → auto-reconnect; offline queuing and resend.
+   - Measure: time-to-connect, first-response latency (text and audio), reconnection time, and error rates. Record in a lightweight report.
+   - Add smoke tests that mock LiveKit Room/Participant to simulate: data channel send/receive, audio publish/subscribe, session start/end control messages.
+
+6. **Documentation & Sign-off**
+   - Update `DEVELOPMENT_STATUS.md` with test results, issues found, fixes applied, and remaining action items with owners and priority.
+   - Capture known limitations and mitigations; confirm no P0/P1 issues remain for core flows.
+
+**Success Criteria:**
+- All FR-3 through FR-6 user flows pass on both Android and iOS using the dev client.
+- Median voice round-trip latency ≤500ms on local Wi‑Fi and ≤1s on LTE; no noticeable audio artifacts.
+- Seamless modality switching within a single session (text ↔ voice ↔ image) without context loss.
+- Reconnection restores prior state; queued messages are sent after reconnect; no duplicate deliveries.
+- Frontend and backend share a finalized, documented data channel schema; unknown/extra fields do not break either side.
+- No critical (P0/P1) defects open; all issues are tracked with clear owners and timelines.
+
+---
+
 ### FR-8: Error Handling and Edge Cases
 **Objective:** Handle all error scenarios gracefully with clear user feedback.
 
@@ -652,6 +701,154 @@ The agent responds based on how the user communicated:
 - Reduce audio quality in low battery mode
 - Stop animations when app not visible
 - Use efficient image formats (WebP where supported)
+
+---
+
+## Backend Architecture (LiveKit Agent)
+
+### Backend Framework and Infrastructure
+
+**LiveKit Agent Framework:**
+- **Framework**: LiveKit Agents Framework for Python
+- **Deployment**: LiveKit Cloud with automatic scaling
+- **Containerization**: Docker with health checks
+- **Language**: Python 3.11+ with async/await patterns
+
+**Agent Capabilities:**
+- **Multimodal Processing**: Text, voice (STT/TTS), and image analysis
+- **Real-time Communication**: Low-latency audio streaming and data channels
+- **Session Management**: Dynamic session types (text, voice-ptt, voice-vad)
+- **Context Preservation**: Conversation history across all modalities
+- **Error Handling**: Comprehensive error recovery and logging
+
+**AI Service Integration:**
+- **LLM**: Google Gemini 1.5 Flash for text generation
+- **Vision**: Google Gemini 1.5 Pro for image analysis
+- **STT**: Google Cloud Speech-to-Text with VAD
+- **TTS**: Google Cloud Text-to-Speech with optimized voice settings
+
+**Backend Project Structure:**
+```
+bakebot-agent/
+├── main.py                 # Agent entry point and worker setup
+├── agent/
+│   ├── __init__.py
+│   └── bakebot_agent.py    # Core agent implementation
+├── services/
+│   ├── google_ai_service.py # Google AI integration (LLM + Vision)
+│   └── speech_service.py    # Google Cloud STT/TTS
+├── models/
+│   └── schemas.py          # Pydantic models and types
+├── utils/                  # Utility functions
+├── Dockerfile             # Production containerization
+├── deploy.sh              # LiveKit Cloud deployment
+├── test_agent.py          # Local testing suite
+└── requirements.txt       # Python dependencies
+```
+
+### Backend API Specification
+
+**Data Channel Message Format:**
+```typescript
+interface DataChannelMessage {
+  type: 'text' | 'image' | 'control';
+  payload: {
+    // Text messages
+    content?: string;
+
+    // Image messages
+    data?: string;              // Base64 encoded image
+    caption?: string;
+    metadata?: {
+      width: number;
+      height: number;
+      mimeType: string;
+      size: number;
+    };
+
+    // Control messages
+    action?: 'start_session' | 'end_session';
+    session_type?: 'text' | 'voice-ptt' | 'voice-vad';
+    voice_mode?: 'push-to-talk' | 'continuous';
+    user_id?: string;
+    turn_detection?: 'client' | 'server' | 'none';
+    status?: string;
+  };
+  timestamp: number;
+  message_id: string;
+}
+```
+
+**Session Types:**
+1. **Text Session**: Pure text-based chat with no audio processing
+2. **Voice Push-to-Talk**: Manual recording control with client-side turn detection
+3. **Voice VAD**: Continuous monitoring with server-side voice activity detection
+
+**Backend Endpoints:**
+- **Connection**: LiveKit room connection with authentication
+- **Data Channels**: Reliable transmission for text, images, and control messages
+- **Audio Streams**: Real-time audio input/output with <500ms latency
+- **Image Processing**: Base64 transmission with compression optimization
+
+### Backend Development Workflow
+
+**Local Development:**
+```bash
+# Setup environment
+cd bakebot-agent
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Configure API keys
+
+# Run tests
+python test_agent.py
+
+# Start local agent
+python main.py
+```
+
+**Production Deployment:**
+```bash
+# Deploy to LiveKit Cloud
+./deploy.sh
+
+# Monitor logs via LiveKit Cloud dashboard
+# Scale automatically based on room connections
+```
+
+**Backend Testing Strategy:**
+- Unit tests for AI service integration
+- Integration tests for LiveKit communication
+- End-to-end tests with frontend
+- Load testing for concurrent sessions
+- Error handling and recovery validation
+
+### Backend Configuration
+
+**Environment Variables:**
+```bash
+# LiveKit Configuration
+LIVEKIT_URL=wss://your-livekit-cloud-url.livekit.cloud
+LIVEKIT_API_KEY=your-livekit-api-key
+LIVEKIT_API_SECRET=your-livekit-api-secret
+
+# Google AI Configuration
+GOOGLE_API_KEY=your-google-ai-api-key
+GOOGLE_PROJECT_ID=your-google-cloud-project-id
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+
+# Agent Configuration
+AGENT_NAME=BakeBot
+AGENT_VERSION=1.0.0
+DEBUG=false
+```
+
+**Docker Configuration:**
+- Base: Python 3.11 slim
+- Security: Non-root user execution
+- Health: Liveness probe and error handling
+- Performance: Optimized for concurrent sessions
 
 ---
 
