@@ -5,7 +5,8 @@
       "Bash(mkdir:*)",
       "Bash(npm start:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx expo start:*)"
+      "Bash(npx expo start:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
