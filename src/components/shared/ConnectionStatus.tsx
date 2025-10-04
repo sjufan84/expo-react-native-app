@@ -1,76 +1,60 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAgent } from '../../context/AgentContext';
+import { Button } from '../ui/Button';
+import { cn } from '../../utils/cn';
 
 interface ConnectionStatusProps {
-  visible?: boolean;
   onRetry?: () => void;
 }
 
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
-  visible = true,
-  onRetry
-}) => {
-  const { theme } = useTheme();
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ onRetry }) => {
   const { connectionState, error } = useAgent();
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [showStatus, setShowStatus] = useState(false);
+  const insets = useSafeAreaInsets();
+  const anim = useRef(new Animated.Value(0)).current;
+  const [isVisible, setIsVisible] = useState(false);
 
-  // Determine if status should be shown
   useEffect(() => {
-    const shouldShow = visible && (
+    const shouldBeVisible =
       connectionState === 'CONNECTING' ||
       connectionState === 'RECONNECTING' ||
-      connectionState === 'FAILED' ||
-      error !== null
-    );
+      connectionState === 'FAILED';
 
-    if (shouldShow !== showStatus) {
-      setShowStatus(shouldShow);
-
-      if (shouldShow) {
-        // Fade in
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      } else {
-        // Fade out
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      }
+    if (shouldBeVisible !== isVisible) {
+      setIsVisible(shouldBeVisible);
+      Animated.timing(anim, {
+        toValue: shouldBeVisible ? 1 : 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
     }
-  }, [visible, connectionState, error, showStatus, fadeAnim]);
+  }, [connectionState, isVisible, anim]);
 
-  if (!showStatus) {
+  if (!isVisible) {
     return null;
   }
 
-  const getStatusConfig = () => {
+  const getConfig = () => {
     switch (connectionState) {
       case 'CONNECTING':
       case 'RECONNECTING':
         return {
-          color: theme.colors.connecting,
+          variant: 'default' as const,
           text: connectionState === 'RECONNECTING' ? 'Reconnecting...' : 'Connecting...',
           icon: '🔄',
           showRetry: false,
         };
       case 'FAILED':
         return {
-          color: theme.colors.failed,
+          variant: 'destructive' as const,
           text: error || 'Connection failed',
           icon: '❌',
-          showRetry: true,
+          showRetry: !!onRetry,
         };
-      default:
+      default: // Should not happen if visibility logic is correct
         return {
-          color: theme.colors.text,
+          variant: 'default' as const,
           text: 'Unknown status',
           icon: '❓',
           showRetry: false,
@@ -78,83 +62,47 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     }
   };
 
-  const config = getStatusConfig();
+  const config = getConfig();
 
-  const handleRetry = () => {
-    if (onRetry) {
-      onRetry();
+  const containerClasses = cn(
+    'absolute top-0 left-0 right-0 z-50 border-b',
+    {
+      'bg-warning/10 border-warning': config.variant === 'default',
+      'bg-destructive/10 border-destructive': config.variant === 'destructive',
     }
-    // You could implement auto-reconnect logic here
-  };
+  );
+
+  const textClasses = cn('text-sm font-semibold', {
+    'text-warning': config.variant === 'default',
+    'text-destructive': config.variant === 'destructive',
+  });
 
   return (
     <Animated.View
-      style={[
-        styles.container,
-        {
-          backgroundColor: config.color + '15', // Add transparency
-          borderColor: config.color,
-          opacity: fadeAnim,
-        }
-      ]}
+      style={[{ paddingTop: insets.top, opacity: anim, transform: [{
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-50, 0],
+        })
+      }] }]}
+      className={containerClasses}
     >
-      <View style={styles.statusContainer}>
-        <Text style={styles.icon}>{config.icon}</Text>
-        <Text style={[styles.statusText, { color: config.color }]}>
-          {config.text}
-        </Text>
+      <View className="flex-row items-center justify-center gap-2 px-4 py-2">
+        <Text className="text-base">{config.icon}</Text>
+        <Text className={cn(textClasses, 'flex-1')}>{config.text}</Text>
         {config.showRetry && (
-          <TouchableOpacity
-            style={[styles.retryButton, { borderColor: config.color }]}
-            onPress={handleRetry}
+          <Button
+            variant={config.variant}
+            size="sm"
+            onPress={onRetry}
+            className="h-auto rounded-full px-3 py-1"
           >
-            <Text style={[styles.retryText, { color: config.color }]}>
-              Retry
-            </Text>
-          </TouchableOpacity>
+            Retry
+          </Button>
         )}
       </View>
     </Animated.View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    borderBottomWidth: 1,
-    zIndex: 1000,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  icon: {
-    fontSize: 16,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  retryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  retryText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
 
 export default ConnectionStatus;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, TouchableOpacity, StyleSheet, PanResponder, Alert, Text } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useVoice } from '../../hooks/useVoice';
@@ -271,7 +271,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({
               borderColor: theme.colors.border,
             },
           ]}
-          onPress={toggleMute}
+          onPress={() => toggleMute()}
           disabled={disabled}
         >
           <Text style={[styles.muteIcon, { color: isMuted ? 'white' : theme.colors.text }]}>
