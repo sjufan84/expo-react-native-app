@@ -6,7 +6,7 @@ import { audioService } from '../services/AudioService';
 import { useAgent } from '../context/AgentContext';
 import { useLiveKit } from '../hooks/useLiveKit';
 import { ERROR_MESSAGES, AUDIO_CONFIG } from '../utils/constants';
-import { DataChannelMessage } from '../types/message.types';
+import { DataChannelMessage, SessionConfig } from '../types/message.types';
 
 export interface VoiceActivityDetection {
   isActive: boolean;
@@ -53,7 +53,7 @@ export interface UseVoiceReturn {
 }
 
 export const useVoice = (): UseVoiceReturn => {
-  const { isConnected, sendMessage } = useAgent();
+  const { isConnected, sendMessage, session, updateSession, syncSessionWithRoom } = useAgent();
   const liveKit = useLiveKit();
   const [isRecording, setIsRecording] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -429,8 +429,15 @@ export const useVoice = (): UseVoiceReturn => {
     }
 
     setIsMuted(newMutedState);
+
+    // Sync mute state with session
+    if (session.state === 'active') {
+      updateSession({ isMuted: newMutedState });
+      syncSessionWithRoom();
+    }
+
     console.log(`Audio ${newMutedState ? 'muted' : 'unmuted'}`);
-  }, [isMuted]);
+  }, [isMuted, session.state, updateSession, syncSessionWithRoom]);
 
   // Set voice mode
   const setVoiceMode = useCallback((mode: 'push-to-talk' | 'continuous'): void => {
@@ -441,8 +448,18 @@ export const useVoice = (): UseVoiceReturn => {
       stopRecording().catch(console.error);
     }
 
+    // Update session with new voice mode
+    if (session.state === 'active' && session.type !== 'text') {
+      const newTurnDetection = mode === 'push-to-talk' ? 'client' : 'server';
+      updateSession({
+        voiceMode: mode,
+        turnDetection: newTurnDetection
+      });
+      syncSessionWithRoom();
+    }
+
     console.log(`Voice mode changed to: ${mode}`);
-  }, [isRecording, voiceMode, stopRecording]);
+  }, [isRecording, voiceMode, stopRecording, session.state, session.type, updateSession, syncSessionWithRoom]);
 
   // Audio processing methods
   const enableEchoCancellation = useCallback((enabled: boolean): void => {

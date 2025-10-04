@@ -39,10 +39,9 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   disabled = false,
 }) => {
   const { theme } = useTheme();
-  const { isConnected, sendProcessedImage, session, startSession } = useAgent();
+  const { isConnected, sendProcessedImage, session, startSession, sendUserTypingIndicator } = useAgent();
   const voice = useVoice();
   const [message, setMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageResult | null>(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -50,6 +49,7 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   const pressStartTime = useRef(0);
   const inputRef = useRef<TextInput>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
   const insets = useSafeAreaInsets();
 
   const colors = theme.colors as any;
@@ -98,28 +98,37 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     })
   ).current;
 
-  // Handle typing indicators with debouncing
-  const handleTypingStart = useCallback(() => {
-    if (!isTyping && message.trim().length > 0) {
-      setIsTyping(true);
-      onTypingStart?.();
-    }
-
+  // Handle typing indicators with debouncing (500ms delay)
+  const handleTypingIndicator = useCallback((isTyping: boolean) => {
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
 
-    // Set new timeout to stop typing indicator after 1 second of inactivity
-    typingTimeoutRef.current = setTimeout(() => {
-      if (isTyping) {
-        setIsTyping(false);
-        onTypingEnd?.();
+    if (isTyping) {
+      // Send typing start indicator only if not already typing
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        sendUserTypingIndicator(true);
+        onTypingStart?.();
       }
-    }, 1000);
-  }, [isTyping, message, onTypingStart, onTypingEnd]);
 
-  // Handle text change
+      // Set timeout to automatically stop typing after 500ms of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        sendUserTypingIndicator(false);
+        onTypingEnd?.();
+      }, 500);
+    } else {
+      // Send typing stop indicator
+      isTypingRef.current = false;
+      sendUserTypingIndicator(false);
+      onTypingEnd?.();
+    }
+  }, [sendUserTypingIndicator, onTypingStart, onTypingEnd]);
+
+  // Handle text change with debounced typing detection
   const handleTextChange = useCallback((text: string) => {
     if (text.length > maxLength) {
       // Show alert for max length
@@ -129,20 +138,10 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
 
     setMessage(text);
 
-    // Trigger typing indicator if user is actually typing
-    if (text.trim().length > 0) {
-      handleTypingStart();
-    } else {
-      // Stop typing indicator if text is empty
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      if (isTyping) {
-        setIsTyping(false);
-        onTypingEnd?.();
-      }
-    }
-  }, [maxLength, handleTypingStart, isTyping, onTypingEnd]);
+    // Trigger typing indicator if user is actually typing (non-empty text)
+    const hasText = text.trim().length > 0;
+    handleTypingIndicator(hasText);
+  }, [maxLength, handleTypingIndicator]);
 
   // Handle sending message
   const handleSendMessage = useCallback(() => {
@@ -164,17 +163,11 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     setMessage('');
 
     // Stop typing indicator
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    if (isTyping) {
-      setIsTyping(false);
-      onTypingEnd?.();
-    }
+    handleTypingIndicator(false);
 
     // Keep focus on input for continuous messaging
     inputRef.current?.focus();
-  }, [message, isConnected, onSendMessage, isTyping, onTypingEnd]);
+  }, [message, isConnected, onSendMessage, handleTypingIndicator]);
 
   // Handle keyboard submit
   const handleKeyPress = useCallback((e: any) => {
@@ -190,8 +183,13 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
+      // Clear typing indicator on unmount
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        sendUserTypingIndicator(false);
+      }
     };
-  }, []);
+  }, [sendUserTypingIndicator]);
 
   // Handle image selection
   const handleImageSelection = useCallback(async () => {

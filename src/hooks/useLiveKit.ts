@@ -5,6 +5,8 @@ import { Room, RemoteParticipant } from 'livekit-client';
 import {
   ConnectionState,
   DataChannelMessage,
+  SessionConfig,
+  SessionValidationResult,
 } from '../types/message.types';
 import { liveKitService } from '../services/LiveKitService';
 import PermissionService from '../services/PermissionService';
@@ -18,9 +20,28 @@ export interface UseLiveKitReturn {
   connect: (token: string) => Promise<void>;
   disconnect: () => Promise<void>;
   sendData: (message: DataChannelMessage) => Promise<void>;
+  sendDataWithRetry: (message: DataChannelMessage) => Promise<void>;
   subscribeToParticipant: (participantSid: string) => void;
   getParticipants: () => Map<string, RemoteParticipant>;
   isConnected: () => boolean;
+
+  // Session synchronization methods
+  setSessionConfig: (session: SessionConfig) => void;
+  getSessionConfig: () => SessionConfig | null;
+  syncSessionState: (trigger?: string) => void;
+  validateSessionState: () => SessionValidationResult;
+  setSessionSyncEnabled: (enabled: boolean) => void;
+
+  // Typing indicator methods
+  sendTypingIndicator: (isTyping: boolean, userType: 'user' | 'agent') => Promise<void>;
+  getTypingState: () => import('../types/message.types').TypingState;
+  setTypingEventCallback: (callback: (typingState: import('../types/message.types').TypingState) => void) => void;
+  clearTypingState: () => void;
+
+  // Callback methods
+  setConnectionStateChangeCallback: (callback: (state: ConnectionState) => void) => void;
+  setDataChannelErrorCallback: (callback: (error: Error, message?: DataChannelMessage) => void) => void;
+  setSessionSyncEventCallback: (callback: (event: import('../types/message.types').SessionSyncEvent) => void) => void;
 }
 
 export const useLiveKit = (): UseLiveKitReturn => {
@@ -138,6 +159,32 @@ export const useLiveKit = (): UseLiveKitReturn => {
     return liveKitService.isConnected();
   }, []);
 
+  // Send data with retry support
+  const sendDataWithRetry = useCallback(async (message: DataChannelMessage): Promise<void> => {
+    await liveKitService.sendDataWithRetry(message);
+  }, []);
+
+  // Session synchronization methods
+  const setSessionConfig = useCallback((session: SessionConfig): void => {
+    liveKitService.setSessionConfig(session);
+  }, []);
+
+  const getSessionConfig = useCallback((): SessionConfig | null => {
+    return liveKitService.getSessionConfig();
+  }, []);
+
+  const syncSessionState = useCallback((trigger: string = 'manual'): void => {
+    liveKitService.syncSessionState(trigger);
+  }, []);
+
+  const validateSessionState = useCallback((): SessionValidationResult => {
+    return liveKitService.validateSessionState();
+  }, []);
+
+  const setSessionSyncEnabled = useCallback((enabled: boolean): void => {
+    liveKitService.setSessionSyncEnabled(enabled);
+  }, []);
+
   // Monitor connection state changes
   useEffect(() => {
     const interval = setInterval(() => {
@@ -171,8 +218,21 @@ export const useLiveKit = (): UseLiveKitReturn => {
     connect,
     disconnect,
     sendData,
+    sendDataWithRetry,
     subscribeToParticipant,
     getParticipants,
     isConnected,
+    setSessionConfig,
+    getSessionConfig,
+    syncSessionState,
+    validateSessionState,
+    setSessionSyncEnabled,
+    sendTypingIndicator: liveKitService.sendTypingIndicator.bind(liveKitService),
+    getTypingState: liveKitService.getTypingState.bind(liveKitService),
+    setTypingEventCallback: liveKitService.setTypingEventCallback.bind(liveKitService),
+    clearTypingState: liveKitService.clearTypingState.bind(liveKitService),
+    setConnectionStateChangeCallback: liveKitService.setConnectionStateChangeCallback.bind(liveKitService),
+    setDataChannelErrorCallback: liveKitService.setDataChannelErrorCallback.bind(liveKitService),
+    setSessionSyncEventCallback: liveKitService.setSessionSyncEventCallback.bind(liveKitService),
   };
 };

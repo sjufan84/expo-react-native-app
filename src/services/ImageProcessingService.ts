@@ -2,6 +2,11 @@ import { Platform } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import { ImageResult } from '../types/message.types';
+import {
+  handleError,
+  type AppError
+} from '../utils/errorRecovery';
+import { createErrorContext } from '../types/error.types';
 
 export interface ProcessedImageResult {
   uri: string;
@@ -133,6 +138,21 @@ export class ImageProcessingService {
       return processedImage;
     } catch (error) {
       console.error('Error processing image:', error);
+
+      // Handle error through recovery system
+      const errorContext = createErrorContext(
+        'processImage',
+        'ImageProcessingService',
+        {
+          imageUri: imageResult.uri,
+          originalSize: `${imageResult.width}x${imageResult.height}`,
+          originalFileSize: imageResult.fileSize,
+          options: finalOptions,
+          platform: Platform.OS
+        }
+      );
+
+      const appError = await handleError(error, errorContext);
       throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

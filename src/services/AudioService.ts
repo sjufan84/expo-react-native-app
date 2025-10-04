@@ -2,6 +2,11 @@
 import { Room, LocalAudioTrack, Track } from 'livekit-client';
 import { AUDIO_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 import { Platform } from 'react-native';
+import {
+  handleError,
+  type AppError
+} from '../utils/errorRecovery';
+import { createErrorContext } from '../types/error.types';
 
 export interface AudioLevel {
   level: number; // 0-1
@@ -209,6 +214,20 @@ export class AudioService {
     } catch (error) {
       console.error('Failed to start recording:', error);
       this.isRecording = false;
+
+      // Handle error through recovery system
+      const errorContext = createErrorContext(
+        'startRecording',
+        'AudioService',
+        {
+          hasAudioTrack: !!this.audioTrack,
+          isMuted: this.audioTrack?.isMuted || false,
+          roomName: this.room?.name,
+          platform: Platform.OS
+        }
+      );
+
+      const appError = await handleError(error, errorContext);
       throw error;
     }
   }
@@ -285,6 +304,20 @@ export class AudioService {
       console.error('Failed to stop recording:', error);
       this.isRecording = false;
       this.stopAudioLevelMonitoring();
+
+      // Handle error through recovery system
+      const errorContext = createErrorContext(
+        'stopRecording',
+        'AudioService',
+        {
+          wasRecording: true,
+          duration: this.recordingDuration,
+          roomName: this.room?.name,
+          platform: Platform.OS
+        }
+      );
+
+      const appError = await handleError(error, errorContext);
       throw error;
     }
   }

@@ -8,8 +8,10 @@ import {
   Dimensions,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useAgent } from '../../context/AgentContext';
 import { Message } from '../../types/message.types';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -32,6 +34,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
 }) => {
   const { theme } = useTheme();
+  const { retryMessage } = useAgent();
   const colors = theme.colors as any;
   const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
@@ -66,8 +69,65 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         return '✓';
       case 'failed':
         return '✗';
+      case 'retrying':
+        return '🔄';
       default:
         return '';
+    }
+  };
+
+  // Get retry info text
+  const getRetryInfoText = (): string => {
+    if (message.status === 'retrying' && message.retryMetadata) {
+      const { attemptCount, maxAttempts, isPermanentFailure } = message.retryMetadata;
+      if (isPermanentFailure) {
+        return `Failed after ${attemptCount} attempts`;
+      }
+      return `Retrying... (${attemptCount}/${maxAttempts})`;
+    }
+    return '';
+  };
+
+  // Handle retry action
+  const handleRetry = async () => {
+    if (message.status === 'failed' || (message.status === 'retrying' && message.retryMetadata?.isPermanentFailure)) {
+      try {
+        const success = await retryMessage(message.id);
+        if (!success) {
+          Alert.alert('Retry Failed', 'Could not retry message. Please try again later.');
+        }
+      } catch (error) {
+        Alert.alert('Retry Error', 'An error occurred while retrying the message.');
+      }
+    }
+  };
+
+  // Handle long press with retry option
+  const handleLongPressAction = () => {
+    if (onLongPress) {
+      onLongPress(message);
+      return;
+    }
+
+    // Show retry option for failed messages
+    if (isUser && (message.status === 'failed' || (message.status === 'retrying' && message.retryMetadata?.isPermanentFailure))) {
+      Alert.alert(
+        'Message Options',
+        'This message failed to send.',
+        [
+          {
+            text: 'Retry',
+            onPress: handleRetry,
+            style: 'default',
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } else if (onLongPress) {
+      onLongPress(message);
     }
   };
 
@@ -160,7 +220,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         isUser ? styles.userContainer : styles.agentContainer,
       ]}
       onPress={() => onPress?.(message)}
-      onLongPress={() => onLongPress?.(message)}
+      onLongPress={handleLongPressAction}
       activeOpacity={0.8}
     >
       {/* Avatar */}
@@ -266,20 +326,45 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               </Text>
             )}
 
-            {/* Status indicator for user messages */}
-            {isUser && message.status && (
+            {/* Retry info for retrying messages */}
+            {isUser && message.status === 'retrying' && getRetryInfoText() && (
               <Text
                 style={[
-                  styles.statusIndicator,
+                  styles.retryInfo,
                   {
-                    color: message.status === 'failed'
+                    color: message.retryMetadata?.isPermanentFailure
                       ? '#ff4444'
-                      : 'rgba(255, 255, 255, 0.7)',
+                      : 'rgba(255, 255, 255, 0.9)',
                   },
                 ]}
               >
-                {getStatusIndicator()}
+                {getRetryInfoText()}
               </Text>
+            )}
+
+            {/* Status indicator for user messages */}
+            {isUser && message.status && (
+              <TouchableOpacity
+                onPress={handleRetry}
+                disabled={message.status !== 'failed' && !(message.status === 'retrying' && message.retryMetadata?.isPermanentFailure)}
+                style={styles.statusIndicatorContainer}
+              >
+                <Text
+                  style={[
+                    styles.statusIndicator,
+                    {
+                      color: message.status === 'failed' || (message.status === 'retrying' && message.retryMetadata?.isPermanentFailure)
+                        ? '#ff4444'
+                        : message.status === 'retrying'
+                        ? '#ffaa00'
+                        : 'rgba(255, 255, 255, 0.7)',
+                    },
+                    (message.status === 'failed' || (message.status === 'retrying' && message.retryMetadata?.isPermanentFailure)) && styles.clickableStatus,
+                  ]}
+                >
+                  {getStatusIndicator()}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -385,6 +470,17 @@ const styles = StyleSheet.create({
   statusIndicator: {
     fontSize: 12,
     lineHeight: 12,
+  },
+  statusIndicatorContainer: {
+    padding: 2,
+  },
+  clickableStatus: {
+    textDecorationLine: 'underline',
+  },
+  retryInfo: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontStyle: 'italic',
   },
   // Image-related styles
   imageContainer: {

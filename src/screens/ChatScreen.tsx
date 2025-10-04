@@ -20,16 +20,15 @@ import MessageBubble from '../components/chat/MessageBubble';
 import MultimodalInput from '../components/chat/MultimodalInput';
 import SessionIndicator from '../components/shared/SessionIndicator';
 import VoiceSessionControls from '../components/voice/VoiceSessionControls';
+import TypingIndicator from '../components/chat/TypingIndicator';
 import { Message } from '../types/message.types';
 import { useVoice } from '../hooks/useVoice';
 
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { isConnected, sendMessage, session, endSession } = useAgent();
+  const { isConnected, sendMessage, session, endSession, typingState, sendAgentTypingIndicator } = useAgent();
   const voice = useVoice();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [isAgentTyping, setIsAgentTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -90,9 +89,17 @@ const ChatScreen: React.FC = () => {
 
       // Simulate agent response (for demo purposes)
       // In real implementation, this would come from the agent via LiveKit
+
+      // Show agent typing indicator
+      setTimeout(() => {
+        sendAgentTypingIndicator(true);
+      }, 500); // Start typing after 500ms
+
+      // Send actual response after typing period
       setTimeout(() => {
         addMessage(`I received your message: "${text}". How can I help you with that?`, 'agent', 'text');
-      }, 1000 + Math.random() * 2000); // Random delay between 1-3 seconds
+        sendAgentTypingIndicator(false); // Stop typing indicator
+      }, 1500 + Math.random() * 2000); // Random delay between 1.5-3.5 seconds
 
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -117,19 +124,18 @@ const ChatScreen: React.FC = () => {
     }, 1000);
   }, [addMessage]);
 
-  // Handle typing indicators
+  // Handle typing indicators - these are now handled by the AgentContext and MultimodalInput
   const handleTypingStart = useCallback(() => {
-    if (!isTyping) {
-      setIsTyping(true);
-      // In a real implementation, you would send a typing event to the agent here
-    }
-  }, [isTyping]);
+    // This callback is mainly for legacy compatibility
+    // Actual typing indicators are now managed through AgentContext
+    console.log('User typing started');
+  }, []);
 
   const handleTypingEnd = useCallback(() => {
-    if (isTyping) {
-      setIsTyping(false);
-    }
-  }, [isTyping]);
+    // This callback is mainly for legacy compatibility
+    // Actual typing indicators are now managed through AgentContext
+    console.log('User typing ended');
+  }, []);
 
   // Handle settings button press
   const handleSettingsPress = () => {
@@ -254,17 +260,12 @@ const ChatScreen: React.FC = () => {
             />
           )}
 
-          {/* Agent typing indicator */}
-          {isAgentTyping && (
-            <View style={[styles.typingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
-              <Text style={[styles.typingText, { color: theme.colors.textSecondary }]}>
-                👨‍🍳 BakeBot is typing
-                <Text style={styles.typingDots}>.</Text>
-                <Text style={styles.typingDots}>.</Text>
-                <Text style={styles.typingDots}>.</Text>
-              </Text>
-            </View>
-          )}
+          {/* Typing Indicators */}
+          <TypingIndicator
+            typingState={typingState}
+            showUserTyping={false} // Hide user typing indicator in chat (it's shown in input)
+            isUser={false}
+          />
         </View>
 
         {/* Voice Session Controls */}
@@ -371,25 +372,6 @@ const styles = StyleSheet.create({
   messagesContent: {
     padding: 16,
     gap: 8,
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  typingText: {
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  typingDots: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    opacity: 0.6,
   },
 });
 

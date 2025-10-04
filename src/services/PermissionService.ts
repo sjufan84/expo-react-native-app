@@ -1,6 +1,11 @@
 
 import { Platform, Alert, Linking, PermissionsAndroid } from 'react-native';
 import { PERMISSIONS, ERROR_MESSAGES } from '../utils/constants';
+import {
+  handleError,
+  type AppError
+} from '../utils/errorRecovery';
+import { createErrorContext } from '../types/error.types';
 
 export type PermissionType = 'microphone' | 'camera' | 'photoLibrary';
 
@@ -52,6 +57,18 @@ export class PermissionService {
       return true;
     } catch (error) {
       console.error(`Error requesting ${permission} permission:`, error);
+
+      // Handle error through recovery system
+      const errorContext = createErrorContext(
+        'requestPermission',
+        'PermissionService',
+        {
+          permissionType: permission,
+          platform: Platform.OS
+        }
+      );
+
+      const appError = await handleError(error, errorContext);
       return false;
     }
   }
