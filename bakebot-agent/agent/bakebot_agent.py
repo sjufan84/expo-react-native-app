@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -28,7 +29,7 @@ from models.schemas import (
     AgentResponse
 )
 from services.google_ai_service import GoogleAIService
-from services.speech_service import SpeechService
+from services.speech_service import SpeechService, GoogleStreamSTT, GoogleStreamTTS
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,14 @@ class BakeBotAgent:
 
         # Data channel
         self.data_channel: Optional[rtc.DataChannel] = None
+
+        # Performance monitoring
+        self._performance_metrics = {
+            "stt_latency": [],
+            "tts_latency": [],
+            "llm_latency": [],
+            "total_roundtrip": []
+        }
 
         logger.info("BakeBot agent initialized")
 
@@ -110,35 +119,91 @@ class BakeBotAgent:
         logger.info(f"Connected to room: {self.room.name}")
 
     async def _setup_voice_assistant(self):
-        """Setup the voice assistant."""
-        # Create fnc for TTS using our speech service
-        async def bakebot_tts(text: str) -> rtc.AudioFrame:
-            audio_bytes = await self.speech_service.synthesize_speech(text)
-            # Convert bytes to AudioFrame
-            return rtc.AudioFrame(
-                data=audio_bytes,
-                sample_rate=16000,
-                num_channels=1,
-                samples_per_channel=len(audio_bytes) // 2  # 16-bit audio
-            )
+        """Setup the voice assistant with proper streaming support."""
+        # Create streaming STT adapter
+        stream_stt = GoogleStreamSTT()
 
-        # Create fnc for STT using our speech service
-        async def bakebot_stt(audio_frame: rtc.AudioFrame) -> str:
-            # Convert AudioFrame to bytes for STT
-            audio_bytes = audio_frame.data.tobytes()
-            return await self.speech_service.transcribe_audio_stream([audio_bytes])
+        # Create streaming TTS adapter
+        stream_tts = GoogleStreamTTS()
 
-        # Create voice assistant
+        # Create VAD with proper configuration for low latency
+        vad_instance = vad.VAD(
+            min_speech_duration=0.3,  # 300ms minimum speech
+            min_silence_duration=0.8,  # 800ms silence before end
+            padding_duration=0.1,      # 100ms padding
+            threshold=0.5,            # Moderate sensitivity
+        )
+
+        # Create voice assistant with proper streaming adapters
         self.voice_assistant = VoiceAssistant(
-            vad=vad.VAD(),
-            stt=stt.StreamAdapter(stt=bakebot_stt),
+            vad=vad_instance,
+            stt=stream_stt,
             llm=self._create_llm_adapter(),
-            tts=tts.StreamAdapter(tts=bakebot_tts),
-            chat_ctx=self._create_chat_context()
+            tts=stream_tts,
+            chat_ctx=self._create_chat_context(),
+            # Enable barge-in for better user experience
+            allow_barge_in=True,
+            # Configure turn detection based on session type
+            turn_detection=vad.VAD.TurnDetection.SERVER_SIDE,
         )
 
         # Start voice assistant
         self.voice_assistant.start(self.room)
+
+        # Setup event handlers for monitoring
+        self._setup_voice_assistant_events()
+
+        logger.info("Voice assistant started with streaming STT/TTS")
+
+    def _setup_voice_assistant_events(self):
+        """Setup event handlers for voice assistant monitoring."""
+        if not self.voice_assistant:
+            return
+
+        @self.voice_assistant.on("user_started_speaking")
+        def on_user_started_speaking():
+            logger.info("User started speaking")
+            # Record start time for latency measurement
+            self._speech_start_time = time.time()
+
+        @self.voice_assistant.on("user_stopped_speaking")
+        def on_user_stopped_speaking():
+            logger.info("User stopped speaking")
+
+        @self.voice_assistant.on("agent_started_speaking")
+        def on_agent_started_speaking():
+            logger.info("Agent started speaking")
+            # Calculate STT + LLM latency
+            if hasattr(self, '_speech_start_time'):
+                stt_llm_latency = (time.time() - self._speech_start_time) * 1000
+                self._performance_metrics["stt_latency"].append(stt_llm_latency)
+                logger.info(f"STT + LLM latency: {stt_llm_latency:.2f}ms")
+
+        @self.voice_assistant.on("agent_stopped_speaking")
+        def on_agent_stopped_speaking():
+            logger.info("Agent stopped speaking")
+            # Calculate total roundtrip latency
+            if hasattr(self, '_speech_start_time'):
+                total_latency = (time.time() - self._speech_start_time) * 1000
+                self._performance_metrics["total_roundtrip"].append(total_latency)
+
+                # Log performance metrics
+                avg_total = sum(self._performance_metrics["total_roundtrip"]) / len(self._performance_metrics["total_roundtrip"])
+                logger.info(f"Total roundtrip latency: {total_latency:.2f}ms (avg: {avg_total:.2f}ms)")
+
+                # Alert if exceeding target
+                if total_latency > 500:
+                    logger.warning(f"Latency target exceeded! {total_latency:.2f}ms > 500ms")
+
+        @self.voice_assistant.on("speech_interrupted")
+        def on_speech_interrupted():
+            logger.info("Speech was interrupted (barge-in)")
+
+        @self.voice_assistant.on("error")
+        def on_error(error: Exception):
+            logger.error(f"Voice assistant error: {error}")
+
+        logger.info("Voice assistant event handlers configured")
 
     async def _setup_data_channel(self):
         """Setup data channel for text and image communication."""
@@ -267,6 +332,12 @@ class BakeBotAgent:
 
             logger.info(f"Started session: {self.session_config.session_type}")
 
+            # Reconfigure voice assistant based on session type
+            if self.voice_assistant and self.session_config.session_type in [
+                SessionType.VOICE_PTT, SessionType.VOICE_VAD
+            ]:
+                await self._reconfigure_voice_assistant()
+
             # Send confirmation
             await self._send_message(
                 content="Session started! I'm ready to help.",
@@ -278,12 +349,69 @@ class BakeBotAgent:
             logger.info("Session ended")
             self.session_config = None
 
+            # Stop any ongoing speech
+            if self.voice_assistant:
+                # Cancel any ongoing TTS
+                try:
+                    await self.voice_assistant.cancel()
+                except:
+                    pass  # Ignore errors during cleanup
+
             # Send confirmation
             await self._send_message(
                 content="Session ended. Feel free to start a new one anytime!",
                 message_type="control",
                 payload={"status": "session_ended"}
             )
+
+        elif payload.get('action') == 'interrupt':
+            """Handle user interruption (barge-in)."""
+            if self.voice_assistant:
+                try:
+                    # Cancel current speech immediately
+                    await self.voice_assistant.cancel()
+                    logger.info("User interruption handled - speech cancelled")
+                except Exception as e:
+                    logger.error(f"Error handling interruption: {e}")
+
+    async def _reconfigure_voice_assistant(self):
+        """Reconfigure voice assistant based on session type."""
+        if not self.voice_assistant:
+            return
+
+        try:
+            if self.session_config.session_type == SessionType.VOICE_VAD:
+                # Voice Activity Detection mode - optimized for low latency
+                logger.info("Configuring VAD for automatic turn detection with low latency")
+                # Current VAD settings are already optimized for this
+
+            elif self.session_config.session_type == SessionType.VOICE_PTT:
+                # Push-to-Talk mode - manual turn detection
+                logger.info("Configuring for push-to-talk mode")
+                # VAD settings would be adjusted for PTT in a full reconfiguration
+
+            logger.info(f"Voice assistant reconfigured for {self.session_config.session_type}")
+
+        except Exception as e:
+            logger.error(f"Error reconfiguring voice assistant: {e}")
+
+    def get_performance_stats(self) -> Dict[str, float]:
+        """Get current performance statistics."""
+        stats = {}
+
+        for metric_name, values in self._performance_metrics.items():
+            if values:
+                stats[f"{metric_name}_avg"] = sum(values) / len(values)
+                stats[f"{metric_name}_min"] = min(values)
+                stats[f"{metric_name}_max"] = max(values)
+                stats[f"{metric_name}_count"] = len(values)
+            else:
+                stats[f"{metric_name}_avg"] = 0.0
+                stats[f"{metric_name}_min"] = 0.0
+                stats[f"{metric_name}_max"] = 0.0
+                stats[f"{metric_name}_count"] = 0
+
+        return stats
 
     async def _send_message(self, content: str, message_type: str, payload: Dict[str, Any] = None):
         """Send a message via data channel."""

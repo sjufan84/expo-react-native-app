@@ -6,7 +6,12 @@
       "Bash(npm start:*)",
       "Bash(npx tsc:*)",
       "Bash(npx expo start:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run lint)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

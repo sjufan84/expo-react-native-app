@@ -1,6 +1,7 @@
 
-import { Room, LocalAudioTrack } from 'livekit-client';
+import { Room, LocalAudioTrack, Track } from 'livekit-client';
 import { AUDIO_CONFIG, ERROR_MESSAGES } from '../utils/constants';
+import { Platform } from 'react-native';
 
 export interface AudioLevel {
   level: number; // 0-1
@@ -24,9 +25,40 @@ export class AudioService {
   private audioLevelInterval: NodeJS.Timeout | null = null;
   private recordingStartTime: number = 0;
   private recordingDuration: number = 0;
+  private room: Room | null = null;
+
+  // Audio processing options
+  private echoCancellation = true;
+  private noiseSuppression = true;
+  private autoGainControl = true;
 
   constructor() {
-    // Initialize any required audio setup
+    // Initialize audio processing based on platform
+    this.initializeAudioProcessing();
+  }
+
+  /**
+   * Initialize audio processing settings based on platform
+   */
+  private initializeAudioProcessing(): void {
+    // Optimize for mobile platforms
+    if (Platform.OS === 'ios') {
+      // iOS specific optimizations
+      this.echoCancellation = true;
+      this.noiseSuppression = true;
+      this.autoGainControl = true;
+    } else if (Platform.OS === 'android') {
+      // Android specific optimizations
+      this.echoCancellation = true;
+      this.noiseSuppression = true;
+      this.autoGainControl = false; // May cause issues on some Android devices
+    }
+
+    console.log('AudioService initialized for platform:', Platform.OS, {
+      echoCancellation: this.echoCancellation,
+      noiseSuppression: this.noiseSuppression,
+      autoGainControl: this.autoGainControl,
+    });
   }
 
   /**
@@ -40,9 +72,21 @@ export class AudioService {
       }
 
       // In React Native, audio tracks are created through the Room
-      // This method is a placeholder - the actual track is obtained via Room.localParticipant
-      console.log('Audio track will be created when published to room');
-      return null;
+      // when microphone is enabled. This method sets up the configuration
+      // that will be used when the track is created.
+      console.log('Audio track configuration prepared for LiveKit room');
+
+      // Prepare audio constraints for React Native
+      const audioConstraints = {
+        echoCancellation: this.echoCancellation,
+        noiseSuppression: this.noiseSuppression,
+        autoGainControl: this.autoGainControl,
+        sampleRate: AUDIO_CONFIG.sampleRate,
+        channelCount: AUDIO_CONFIG.channels,
+      };
+
+      console.log('Audio constraints configured:', audioConstraints);
+      return null; // Track will be created by LiveKit when microphone is enabled
 
     } catch (error) {
       console.error('Failed to create local audio track:', error);
@@ -55,19 +99,59 @@ export class AudioService {
    */
   async publishAudioTrack(room: Room): Promise<void> {
     try {
-      // In React Native, enable microphone through localParticipant
+      this.room = room;
+
+      // Enable microphone through localParticipant
       await room.localParticipant.setMicrophoneEnabled(true);
-      
+
       // Get the audio track from the participant
-      const audioPublication = Array.from(room.localParticipant.audioTrackPublications.values())[0];
-      this.audioTrack = audioPublication?.track as LocalAudioTrack || null;
-      
-      console.log('Audio track published successfully');
+      const audioPublications = Array.from(room.localParticipant.audioTrackPublications.values());
+      if (audioPublications.length > 0) {
+        const audioPublication = audioPublications[0];
+        this.audioTrack = audioPublication.track as LocalAudioTrack;
+
+        if (this.audioTrack) {
+          console.log('Audio track published successfully:', this.audioTrack.sid);
+
+          // Set up audio track event listeners
+          this.setupAudioTrackListeners();
+        } else {
+          console.warn('Audio track publication found but track is null');
+        }
+      } else {
+        console.warn('No audio track publications found after enabling microphone');
+      }
 
     } catch (error) {
       console.error('Failed to publish audio track:', error);
       throw error;
     }
+  }
+
+  /**
+   * Set up audio track event listeners
+   */
+  private setupAudioTrackListeners(): void {
+    if (!this.audioTrack) return;
+
+    // Listen for track mute/unmute events
+    this.audioTrack.on(Track.Event.Muted, () => {
+      console.log('Audio track muted');
+      this.isMuted = true;
+    });
+
+    this.audioTrack.on(Track.Event.Unmuted, () => {
+      console.log('Audio track unmuted');
+      this.isMuted = false;
+    });
+
+    // Listen for track end events
+    this.audioTrack.on(Track.Event.Ended, () => {
+      console.log('Audio track ended');
+      this.audioTrack = null;
+    });
+
+    console.log('Audio track listeners set up');
   }
 
   /**
@@ -96,19 +180,17 @@ export class AudioService {
     }
 
     try {
-      // In development mode, we can start recording without a LiveKit room
-      if (__DEV__ && !this.audioTrack) {
-        console.log('🔧 Development Mode: Starting mock audio recording');
-        this.isRecording = true;
-        this.recordingStartTime = Date.now();
-        this.startAudioLevelMonitoring();
-        console.log('Mock audio recording started');
-        return;
+      // Ensure we have an audio track
+      if (!this.audioTrack) {
+        throw new Error('No audio track available. Please ensure microphone is enabled.');
       }
 
-      if (!this.audioTrack) {
-        await this.createLocalAudioTrack();
+      // Ensure the track is unmuted and enabled
+      if (this.audioTrack.isMuted) {
+        await this.audioTrack.unmute();
       }
+
+      await this.audioTrack.setEnabled(true);
 
       this.isRecording = true;
       this.recordingStartTime = Date.now();
@@ -116,13 +198,42 @@ export class AudioService {
       // Start monitoring audio levels
       this.startAudioLevelMonitoring();
 
-      console.log('Audio recording started');
+      console.log('Audio recording started with track:', this.audioTrack.sid);
+
+      // Development mode fallback
+      if (__DEV__ && !this.audioTrack.getAnalyzer) {
+        console.log('🔧 Development Mode: Mock recording (no analyzer available)');
+        this.startMockAudioLevelMonitoring();
+      }
 
     } catch (error) {
       console.error('Failed to start recording:', error);
       this.isRecording = false;
       throw error;
     }
+  }
+
+  /**
+   * Start mock audio level monitoring for development
+   */
+  private startMockAudioLevelMonitoring(): void {
+    if (this.audioLevelInterval) {
+      clearInterval(this.audioLevelInterval);
+    }
+
+    this.audioLevelInterval = setInterval(() => {
+      if (this.isRecording && this.onAudioLevelCallback) {
+        // Generate realistic mock audio levels
+        const baseLevel = Math.random() * 0.3; // Base noise level
+        const peakLevel = Math.random() < 0.1 ? Math.random() * 0.7 : 0; // Occasional peaks
+        const level = Math.min(1, baseLevel + peakLevel);
+
+        this.onAudioLevelCallback({
+          level,
+          timestamp: Date.now(),
+        });
+      }
+    }, 100); // 10Hz update rate
   }
 
   /**
@@ -227,17 +338,20 @@ export class AudioService {
 
     this.audioLevelInterval = setInterval(() => {
       if (this.audioTrack && this.isRecording) {
-        // Get audio level from track (mock implementation)
-        const level = this.getAudioLevel();
+        try {
+          const level = this.getRealAudioLevel();
 
-        if (this.onAudioLevelCallback) {
-          this.onAudioLevelCallback({
-            level,
-            timestamp: Date.now(),
-          });
+          if (this.onAudioLevelCallback) {
+            this.onAudioLevelCallback({
+              level,
+              timestamp: Date.now(),
+            });
+          }
+        } catch (error) {
+          console.warn('Error getting audio level:', error);
         }
       }
-    }, 100); // Monitor every 100ms
+    }, 50); // 20Hz monitoring for better responsiveness (<500ms latency target)
   }
 
   /**
@@ -251,15 +365,52 @@ export class AudioService {
   }
 
   /**
-   * Get current audio level (mock implementation)
+   * Get real audio level from LiveKit track
    */
-  private getAudioLevel(): number {
-    // In a real implementation, you'd get this from the audio track
-    // For now, generate a mock level
-    if (!this.isRecording) return 0;
+  private getRealAudioLevel(): number {
+    if (!this.audioTrack || !this.isRecording) return 0;
 
-    // Simulate audio level with random values
-    return Math.random() * 0.8; // 0-0.8 range
+    try {
+      // Try to get audio level from LiveKit track analyzer
+      if (this.audioTrack.getAnalyzer) {
+        const analyzer = this.audioTrack.getAnalyzer();
+        if (analyzer) {
+          // Get frequency data for audio level calculation
+          const bufferLength = analyzer.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+          analyzer.getByteFrequencyData(dataArray);
+
+          // Calculate RMS (Root Mean Square) for audio level
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            const normalizedValue = dataArray[i] / 255; // Normalize to 0-1
+            sum += normalizedValue * normalizedValue;
+          }
+          const rms = Math.sqrt(sum / bufferLength);
+
+          // Apply logarithmic scaling for more natural response
+          const scaledLevel = Math.log10(1 + rms * 9) / Math.log10(10);
+          return Math.min(1, Math.max(0, scaledLevel));
+        }
+      }
+
+      // Fallback: try to get audio level through media stream
+      if (this.audioTrack.mediaStream && this.audioTrack.mediaStream.getAudioTracks().length > 0) {
+        // Web Audio API would go here, but React Native has limited support
+        // Return estimated level based on track state
+        return this.audioTrack.isMuted ? 0 : 0.1;
+      }
+
+      // Final fallback for development mode
+      if (__DEV__) {
+        return Math.random() * 0.6;
+      }
+
+      return 0;
+    } catch (error) {
+      console.warn('Error calculating real audio level:', error);
+      return 0;
+    }
   }
 
   /**
@@ -280,7 +431,25 @@ export class AudioService {
    * Enable/disable echo cancellation
    */
   setEchoCancellation(enabled: boolean): void {
-    // Implementation would depend on the audio processing library
+    this.echoCancellation = enabled;
+
+    // Apply to existing track if possible
+    if (this.audioTrack && this.audioTrack.mediaStream) {
+      const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        // @ts-ignore - React Native WebAudio constraints
+        const constraints = track.getConstraints();
+        if (constraints.echoCancellation !== undefined) {
+          track.applyConstraints({
+            ...constraints,
+            echoCancellation: enabled,
+          }).catch(error => {
+            console.warn('Failed to apply echo cancellation:', error);
+          });
+        }
+      });
+    }
+
     console.log(`Echo cancellation ${enabled ? 'enabled' : 'disabled'}`);
   }
 
@@ -288,7 +457,25 @@ export class AudioService {
    * Enable/disable noise suppression
    */
   setNoiseSuppression(enabled: boolean): void {
-    // Implementation would depend on the audio processing library
+    this.noiseSuppression = enabled;
+
+    // Apply to existing track if possible
+    if (this.audioTrack && this.audioTrack.mediaStream) {
+      const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        // @ts-ignore - React Native WebAudio constraints
+        const constraints = track.getConstraints();
+        if (constraints.noiseSuppression !== undefined) {
+          track.applyConstraints({
+            ...constraints,
+            noiseSuppression: enabled,
+          }).catch(error => {
+            console.warn('Failed to apply noise suppression:', error);
+          });
+        }
+      });
+    }
+
     console.log(`Noise suppression ${enabled ? 'enabled' : 'disabled'}`);
   }
 
@@ -296,8 +483,81 @@ export class AudioService {
    * Enable/disable auto gain control
    */
   setAutoGainControl(enabled: boolean): void {
-    // Implementation would depend on the audio processing library
+    this.autoGainControl = enabled;
+
+    // Apply to existing track if possible
+    if (this.audioTrack && this.audioTrack.mediaStream) {
+      const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        // @ts-ignore - React Native WebAudio constraints
+        const constraints = track.getConstraints();
+        if (constraints.autoGainControl !== undefined) {
+          track.applyConstraints({
+            ...constraints,
+            autoGainControl: enabled,
+          }).catch(error => {
+            console.warn('Failed to apply auto gain control:', error);
+          });
+        }
+      });
+    }
+
     console.log(`Auto gain control ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Get audio processing statistics
+   */
+  getAudioStats(): {
+    isEnabled: boolean;
+    isRecording: boolean;
+    isMuted: boolean;
+    hasTrack: boolean;
+    echoCancellation: boolean;
+    noiseSuppression: boolean;
+    autoGainControl: boolean;
+    recordingDuration: number;
+  } {
+    return {
+      isEnabled: !!this.audioTrack,
+      isRecording: this.isRecording,
+      isMuted: this.isMuted,
+      hasTrack: !!this.audioTrack,
+      echoCancellation: this.echoCancellation,
+      noiseSuppression: this.noiseSuppression,
+      autoGainControl: this.autoGainControl,
+      recordingDuration: this.getRecordingDuration(),
+    };
+  }
+
+  /**
+   * Optimize for low latency performance
+   */
+  optimizeForLowLatency(): void {
+    if (!this.audioTrack) return;
+
+    try {
+      // Reduce buffer sizes for lower latency
+      if (this.audioTrack.mediaStream) {
+        const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
+        audioTracks.forEach(track => {
+          // @ts-ignore - React Native specific optimizations
+          if (track.applyConstraints) {
+            track.applyConstraints({
+              latency: 0.01, // Target 10ms latency
+              sampleRate: AUDIO_CONFIG.sampleRate,
+              channelCount: AUDIO_CONFIG.channels,
+            }).catch(error => {
+              console.warn('Failed to apply low latency constraints:', error);
+            });
+          }
+        });
+      }
+
+      console.log('Audio track optimized for low latency');
+    } catch (error) {
+      console.warn('Failed to optimize for low latency:', error);
+    }
   }
 
   /**
@@ -312,20 +572,50 @@ export class AudioService {
    */
   async cleanup(): Promise<void> {
     try {
+      console.log('Cleaning up AudioService...');
+
+      // Stop recording if active
+      if (this.isRecording) {
+        this.isRecording = false;
+        this.recordingDuration = Date.now() - this.recordingStartTime;
+      }
+
+      // Stop audio level monitoring
       this.stopAudioLevelMonitoring();
 
+      // Clean up audio track
       if (this.audioTrack) {
-        await this.audioTrack.stop();
+        try {
+          // Remove event listeners
+          this.audioTrack.removeAllListeners();
+
+          // Stop and clean up track
+          if (this.audioTrack.mediaStream) {
+            const tracks = this.audioTrack.mediaStream.getTracks();
+            tracks.forEach(track => {
+              track.stop();
+            });
+          }
+
+          await this.audioTrack.stop();
+        } catch (error) {
+          console.warn('Error stopping audio track:', error);
+        }
+
         this.audioTrack = null;
       }
 
+      // Reset state
       this.isRecording = false;
       this.isMuted = false;
+      this.recordingDuration = 0;
+      this.recordingStartTime = 0;
       this.onAudioLevelCallback = null;
+      this.room = null;
 
-      console.log('Audio service cleaned up');
+      console.log('AudioService cleaned up successfully');
     } catch (error) {
-      console.error('Error during cleanup:', error);
+      console.error('Error during AudioService cleanup:', error);
     }
   }
 }

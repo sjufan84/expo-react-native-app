@@ -29,6 +29,8 @@
     "event-target-shim": "^6.0.2",
     "expo": "^54.0.12",
     "expo-dev-client": "~6.0.13",
+    "expo-file-system": "^19.0.16",
+    "expo-image-manipulator": "^14.0.7",
     "expo-status-bar": "~3.0.8",
     "jest": "^30.2.0",
     "livekit-client": "^2.15.8",
