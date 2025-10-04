@@ -148,7 +148,7 @@ export const useLiveKit = (): UseLiveKitReturn => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [connectionState]);
+  }, []); // Remove connectionState from dependencies to prevent infinite loop
 
   // Cleanup on unmount
   useEffect(() => {
@@ -157,7 +157,7 @@ export const useLiveKit = (): UseLiveKitReturn => {
         disconnect().catch(console.error);
       }
     };
-  }, [disconnect, isConnected]);
+  }, []); // Remove function dependencies to prevent infinite loop
 
   // Log state changes for debugging
   useEffect(() => {

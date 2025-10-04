@@ -65,6 +65,19 @@ export type ConnectionState =
   | 'RECONNECTING'
   | 'FAILED';
 
+export type SessionType = 'text' | 'voice-ptt' | 'voice-vad' | null;
+
+export type SessionState = 'idle' | 'active' | 'ending';
+
+export interface SessionConfig {
+  type: SessionType;
+  state: SessionState;
+  startedAt: Date | null;
+  voiceMode?: 'push-to-talk' | 'continuous';
+  isMuted?: boolean;
+  turnDetection?: 'server' | 'client' | 'none';
+}
+
 export interface AudioData {
   uri: string;
   duration: number;

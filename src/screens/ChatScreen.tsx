@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   StatusBar,
   KeyboardAvoidingView,
@@ -12,18 +11,22 @@ import {
   Alert,
   FlatList,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAgent } from '../context/AgentContext';
 import { ThemeProvider } from '../context/ThemeContext';
 import ConnectionStatus from '../components/shared/ConnectionStatus';
 import MessageBubble from '../components/chat/MessageBubble';
 import MultimodalInput from '../components/chat/MultimodalInput';
+import SessionIndicator from '../components/shared/SessionIndicator';
+import VoiceSessionControls from '../components/voice/VoiceSessionControls';
 import { Message } from '../types/message.types';
+import { useVoice } from '../hooks/useVoice';
 
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { isConnected, sendMessage } = useAgent();
+  const { isConnected, sendMessage, session, endSession } = useAgent();
+  const voice = useVoice();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isAgentTyping, setIsAgentTyping] = useState(false);
@@ -135,7 +138,7 @@ const ChatScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }] } edges={['top','bottom']}>
       <StatusBar
         barStyle={theme.colors.background === '#ffffff' ? 'dark-content' : 'light-content'}
         backgroundColor={theme.colors.background}
@@ -152,15 +155,33 @@ const ChatScreen: React.FC = () => {
       />
 
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          BakeBot
-        </Text>
-        <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
-          <Text style={[styles.settingsText, { color: theme.colors.textSecondary }]}>
-            ⚙️
+      <View style={[styles.header, { borderBottomColor: theme.colors.border, paddingTop: Math.max(insets.top * 0.25, 4) }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            BakeBot
           </Text>
-        </TouchableOpacity>
+          <SessionIndicator
+            sessionType={session.type}
+            sessionState={session.state}
+            isRecording={voice.isRecording}
+          />
+        </View>
+        <View style={styles.headerRight}>
+          {session.state === 'active' && (
+            <TouchableOpacity
+              style={[styles.endSessionButton, { backgroundColor: theme.colors.error }]}
+              onPress={endSession}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.endSessionText}>End</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
+            <Text style={[styles.settingsText, { color: theme.colors.textSecondary }]}>
+              ⚙️
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Messages Area */}
@@ -245,15 +266,26 @@ const ChatScreen: React.FC = () => {
             </View>
           )}
         </View>
-        <MultimodalInput
-          onSendMessage={handleSendMessage}
-          onSendVoiceMessage={handleSendVoiceMessage}
-          onTypingStart={handleTypingStart}
-          onTypingEnd={handleTypingEnd}
-          placeholder="Ask BakeBot..."
-          maxLength={1000}
-          disabled={!isConnected}
-        />
+
+        {/* Voice Session Controls */}
+        {session.state === 'active' && (session.type === 'voice-ptt' || session.type === 'voice-vad') && (
+          <View style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
+            <VoiceSessionControls onEndSession={endSession} />
+          </View>
+        )}
+
+        {/* Input */}
+        {session.state !== 'active' || session.type === 'text' ? (
+          <MultimodalInput
+            onSendMessage={handleSendMessage}
+            onSendVoiceMessage={handleSendVoiceMessage}
+            onTypingStart={handleTypingStart}
+            onTypingEnd={handleTypingEnd}
+            placeholder="Ask BakeBot..."
+            maxLength={1000}
+            disabled={!isConnected}
+          />
+        ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -271,6 +303,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -280,6 +322,16 @@ const styles = StyleSheet.create({
   },
   settingsText: {
     fontSize: 20,
+  },
+  endSessionButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+  },
+  endSessionText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 12,
   },
   messagesContainer: {
     flex: 1,

@@ -96,6 +96,16 @@ export class AudioService {
     }
 
     try {
+      // In development mode, we can start recording without a LiveKit room
+      if (__DEV__ && !this.audioTrack) {
+        console.log('🔧 Development Mode: Starting mock audio recording');
+        this.isRecording = true;
+        this.recordingStartTime = Date.now();
+        this.startAudioLevelMonitoring();
+        console.log('Mock audio recording started');
+        return;
+      }
+
       if (!this.audioTrack) {
         await this.createLocalAudioTrack();
       }
@@ -130,6 +140,21 @@ export class AudioService {
 
       // Stop monitoring audio levels
       this.stopAudioLevelMonitoring();
+
+      // In development mode, return mock data
+      if (__DEV__ && !this.audioTrack) {
+        console.log('🔧 Development Mode: Returning mock recording data');
+        const recordingData: AudioRecordingData = {
+          uri: `dev_mock_recording_${Date.now()}.webm`,
+          duration: this.recordingDuration,
+          size: Math.floor(this.recordingDuration * AUDIO_CONFIG.bitRate / 8),
+          channels: AUDIO_CONFIG.channels,
+          sampleRate: AUDIO_CONFIG.sampleRate,
+          bitRate: AUDIO_CONFIG.bitRate,
+        };
+        console.log('Mock audio recording stopped');
+        return recordingData;
+      }
 
       // In a real implementation, you'd save the audio data here
       // For now, return mock data

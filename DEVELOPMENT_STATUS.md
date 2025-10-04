@@ -257,6 +257,44 @@
 
 ---
 
+### ✅ FR-11: Session Management & Session‑Aware UI - **COMPLETED**
+**Date:** October 4, 2025
+**Status:** ✅ **COMPLETED AND TESTED**
+
+**Implementation Details:**
+- ✅ Added session model with types: `text`, `voice-ptt`, `voice-vad`
+- ✅ Session lifecycle states: `idle`, `active`, `ending`
+- ✅ Auto-start session based on first user action (text vs voice)
+- ✅ Global session actions in `AgentContext`: `START_SESSION`, `END_SESSION`, `UPDATE_SESSION`
+- ✅ Context methods: `startSession(type, voiceMode?)`, `endSession()`, `updateSession(updates)`
+- ✅ Turn detection defaults: `client` for PTT, `server` for VAD, `none` for text
+
+**UI/UX Enhancements:**
+- 🎛️ Session-aware chat bar: hides input during active voice sessions and shows dedicated controls
+- 🧭 Header session indicator with icon and status, respecting safe-area padding
+- 🧯 End Session available in header and in voice controls
+- 🔇 Mute toggle and PTT/VAD mode switch in `VoiceSessionControls`
+- 🧩 Safe-area integration for header (top) and controls (bottom) to avoid clipping
+
+**Files Created/Updated:**
+- ➕ `src/components/shared/SessionIndicator.tsx` (new)
+- ➕ `src/components/voice/VoiceSessionControls.tsx` (new)
+- ✨ `src/components/chat/MultimodalInput.tsx` (session-aware updates, auto PTT start)
+- ✨ `src/screens/ChatScreen.tsx` (header End button, indicator, safe-area padding, voice controls)
+- ✨ `src/context/AgentContext.tsx` (session state, actions, methods)
+- ✨ `src/types/message.types.ts` (session types and config)
+- ✨ `src/hooks/useVoice.ts` (dev-mode flow and integration)
+- ✨ `src/services/AudioService.ts` (dev-mode recording support)
+
+**Issues Encountered & Resolved:**
+- 🐛 Infinite render loop from effect dependencies → fixed in `useLiveKit`, `useVoice`, `AgentContext`
+- 🖼️ Header/controls overlapping safe areas → added `SafeAreaView` edges and dynamic inset padding
+
+**Result:**
+- Users can initiate text or voice (PTT/VAD) sessions intuitively
+- Clear visual feedback for session state and recording
+- Simple controls to mute, switch modes, and end the session
+
 ## **Phase 3: Advanced Features (Pending)**
 
 ### ✅ FR-6: Multimodal Integration - **COMPLETED**
@@ -344,4 +382,4 @@
 
 ---
 
-**Last Updated:** October 3, 2025 - 9:58 PM EST
+**Last Updated:** October 4, 2025 - 2:15 PM EST

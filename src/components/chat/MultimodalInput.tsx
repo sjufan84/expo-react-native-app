@@ -39,7 +39,7 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   disabled = false,
 }) => {
   const { theme } = useTheme();
-  const { isConnected, sendProcessedImage } = useAgent();
+  const { isConnected, sendProcessedImage, session, startSession } = useAgent();
   const voice = useVoice();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -59,18 +59,29 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     PanResponder.create({
       onStartShouldSetPanResponder: () => !disabled && message.trim().length === 0,
       onMoveShouldSetPanResponder: () => false,
-      onPanResponderGrant: () => {
+      onPanResponderGrant: async () => {
         if (voice.isRecording) return;
+        
+        // Start voice session if not active
+        if (session.state === 'idle') {
+          await startSession('voice-ptt', 'push-to-talk');
+        }
+        
         setIsPressingRecord(true);
         pressStartTime.current = Date.now();
-        voice.startRecording();
+        voice.startRecording().catch(error => {
+          console.error('Failed to start voice recording:', error);
+          setIsPressingRecord(false);
+        });
       },
       onPanResponderRelease: () => {
         if (!voice.isRecording) return;
 
         const pressDuration = Date.now() - pressStartTime.current;
         setIsPressingRecord(false);
-        voice.stopRecording();
+        voice.stopRecording().catch(error => {
+          console.error('Failed to stop voice recording:', error);
+        });
 
         if (pressDuration > 300) { // Avoid accidental taps
           onSendVoiceMessage();
@@ -79,7 +90,9 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
       onPanResponderTerminate: () => {
         if (voice.isRecording) {
           setIsPressingRecord(false);
-          voice.stopRecording();
+          voice.stopRecording().catch(error => {
+            console.error('Failed to stop voice recording on terminate:', error);
+          });
         }
       },
     })

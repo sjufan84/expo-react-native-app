@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useState, ReactNode } from 'react';
 import { useLiveKit } from '../hooks/useLiveKit';
-import { Message, InputMode, DataChannelMessage, ConnectionState, ProcessedImageResult, ImageMessageData } from '../types/message.types';
+import { Message, InputMode, DataChannelMessage, ConnectionState, ProcessedImageResult, ImageMessageData, SessionConfig, SessionType } from '../types/message.types';
 import { ERROR_MESSAGES, CHAT_CONFIG } from '../utils/constants';
 import { generateMessageId, validateMessage } from '../utils/formatters';
 // import { LIVEKIT_CONFIG } from '../utils/constants';
@@ -15,6 +15,7 @@ interface AgentState {
   currentInputMode: InputMode;
   error: string | null;
   agentStatus: 'idle' | 'listening' | 'processing' | 'speaking';
+  session: SessionConfig;
 }
 
 // Action types
@@ -27,7 +28,10 @@ type AgentAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_AGENT_STATUS'; payload: AgentState['agentStatus'] }
   | { type: 'CLEAR_MESSAGES' }
-  | { type: 'CLEAR_ERROR' };
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'START_SESSION'; payload: { type: SessionType; voiceMode?: 'push-to-talk' | 'continuous' } }
+  | { type: 'END_SESSION' }
+  | { type: 'UPDATE_SESSION'; payload: Partial<SessionConfig> };
 
 // Initial state
 const initialState: AgentState = {
@@ -37,6 +41,11 @@ const initialState: AgentState = {
   currentInputMode: { type: 'text', isActive: true },
   error: null,
   agentStatus: 'idle',
+  session: {
+    type: null,
+    state: 'idle',
+    startedAt: null,
+  },
 };
 
 // Reducer function
@@ -100,6 +109,39 @@ const agentReducer = (state: AgentState, action: AgentAction): AgentState => {
         error: null,
       };
 
+    case 'START_SESSION':
+      return {
+        ...state,
+        session: {
+          type: action.payload.type,
+          state: 'active',
+          startedAt: new Date(),
+          voiceMode: action.payload.voiceMode,
+          isMuted: false,
+          turnDetection: action.payload.type === 'voice-ptt' ? 'client' : action.payload.type === 'voice-vad' ? 'server' : 'none',
+        },
+      };
+
+    case 'END_SESSION':
+      return {
+        ...state,
+        session: {
+          type: null,
+          state: 'idle',
+          startedAt: null,
+        },
+        agentStatus: 'idle',
+      };
+
+    case 'UPDATE_SESSION':
+      return {
+        ...state,
+        session: {
+          ...state.session,
+          ...action.payload,
+        },
+      };
+
     default:
       return state;
   }
@@ -111,6 +153,10 @@ interface AgentContextType extends AgentState {
   connect: (token: string) => Promise<void>;
   disconnect: () => Promise<void>;
 
+  // Session methods
+  startSession: (type: SessionType, voiceMode?: 'push-to-talk' | 'continuous') => Promise<void>;
+  endSession: () => Promise<void>;
+  updateSession: (updates: Partial<SessionConfig>) => void;
 
   // Message methods
   sendMessage: (content: string, type: Message['type']) => Promise<void>;
@@ -172,6 +218,11 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // Disconnect from agent
   const disconnect = useCallback(async () => {
     try {
+      // End any active session
+      if (state.session.state === 'active') {
+        dispatch({ type: 'END_SESSION' });
+      }
+
       // Handle mock disconnection in development mode
       if (__DEV__ && mockConnected) {
         console.log('🔧 Development Mode: Simulating disconnection');
@@ -188,10 +239,90 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } catch (error) {
       console.error('Disconnect error:', error);
     }
-  }, [liveKit, mockConnected]);
+  }, [liveKit, mockConnected, state.session.state]);
+
+  // Start a new session
+  const startSession = useCallback(async (type: SessionType, voiceMode?: 'push-to-talk' | 'continuous') => {
+    try {
+      if (!state.isConnected) {
+        console.warn('Cannot start session: not connected');
+        return;
+      }
+
+      if (state.session.state === 'active') {
+        console.warn('Session already active');
+        return;
+      }
+
+      console.log(`Starting ${type} session${voiceMode ? ` with ${voiceMode} mode` : ''}`);
+      
+      // Dispatch session start
+      dispatch({ 
+        type: 'START_SESSION', 
+        payload: { type, voiceMode } 
+      });
+
+      // Configure LiveKit room based on session type
+      if (type === 'voice-ptt' || type === 'voice-vad') {
+        // Enable audio tracks for voice sessions
+        console.log('🎙️ Enabling audio for voice session');
+        // TODO: Initialize audio with LiveKit room when available
+      }
+
+      console.log(`✅ ${type} session started successfully`);
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to start session' });
+    }
+  }, [state.isConnected, state.session.state]);
+
+  // End the current session
+  const endSession = useCallback(async () => {
+    try {
+      if (state.session.state !== 'active') {
+        console.warn('No active session to end');
+        return;
+      }
+
+      console.log(`Ending ${state.session.type} session`);
+
+      // Set session state to ending
+      dispatch({ type: 'UPDATE_SESSION', payload: { state: 'ending' } });
+
+      // Cleanup based on session type
+      if (state.session.type === 'voice-ptt' || state.session.type === 'voice-vad') {
+        // Cleanup audio resources
+        console.log('🎙️ Cleaning up audio resources');
+        // TODO: Cleanup audio when integrated with LiveKit
+      }
+
+      // End the session
+      dispatch({ type: 'END_SESSION' });
+
+      console.log('✅ Session ended successfully');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to end session' });
+    }
+  }, [state.session.state, state.session.type]);
+
+  // Update session configuration
+  const updateSession = useCallback((updates: Partial<SessionConfig>) => {
+    if (state.session.state !== 'active') {
+      console.warn('Cannot update session: no active session');
+      return;
+    }
+
+    console.log('Updating session:', updates);
+    dispatch({ type: 'UPDATE_SESSION', payload: updates });
+  }, [state.session.state]);
 
   // Send text message
   const sendMessage = useCallback(async (content: string, type: Message['type'] = 'text') => {
+    // Auto-start text session if not active
+    if (state.session.state === 'idle' && type === 'text') {
+      await startSession('text');
+    }
     // Validate message
     const validationError = validateMessage(content, CHAT_CONFIG.maxMessageLength);
     if (validationError) {
@@ -244,7 +375,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.generic;
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
     }
-  }, [liveKit, state.currentInputMode.type]);
+  }, [liveKit, state.currentInputMode.type, state.session.state, startSession]);
 
   // Send image (legacy method for backward compatibility)
   const sendImage = useCallback(async (imageUri: string, metadata?: any) => {
@@ -449,7 +580,7 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log('🔧 Development Mode: Auto-connecting for testing...');
       connect(''); // Empty token for mock connection
     }
-  }, [mockConnected, state.isConnected, connect]);
+  }, [mockConnected, state.isConnected]); // Remove connect dependency to prevent infinite loop
 
   // Determine connection state for context
   const getConnectionState = (): ConnectionState => {
@@ -463,6 +594,9 @@ export const AgentProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     ...state,
     connect,
     disconnect,
+    startSession,
+    endSession,
+    updateSession,
     connectionState: getConnectionState(),
     sendMessage,
     sendImage,
