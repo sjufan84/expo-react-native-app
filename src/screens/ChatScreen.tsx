@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -15,27 +15,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAgent } from '../context/AgentContext';
-import { useVoice } from '../hooks/useVoice';
 import { ThemeProvider } from '../context/ThemeContext';
-import VoiceControls from '../components/voice/VoiceControls';
 import ConnectionStatus from '../components/shared/ConnectionStatus';
 import MessageBubble from '../components/chat/MessageBubble';
-import MessageInput from '../components/chat/MessageInput';
+import MultimodalInput from '../components/chat/MultimodalInput';
 import { Message } from '../types/message.types';
 
 const ChatScreen: React.FC = () => {
   const { theme } = useTheme();
-  const { isConnected, connectionState, agentStatus, connect, sendMessage } = useAgent();
-  const voice = useVoice();
+  const { isConnected, sendMessage } = useAgent();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [showVoiceControls, setShowVoiceControls] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isAgentTyping, setIsAgentTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
-
-  // Note: Audio initialization will be handled when we have actual LiveKit room connection
-  // For now, we'll simulate voice functionality
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
@@ -61,7 +54,7 @@ const ChatScreen: React.FC = () => {
   }, [scrollToBottom]);
 
   // Send text message via LiveKit
-  const sendTextMessage = useCallback(async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string) => {
     if (!isConnected) {
       Alert.alert('Not Connected', 'Please wait for the connection to be established.');
       return;
@@ -112,12 +105,20 @@ const ChatScreen: React.FC = () => {
     }
   }, [isConnected, sendMessage, addMessage, scrollToBottom]);
 
+  // Handle sending a voice message
+  const handleSendVoiceMessage = useCallback(() => {
+    addMessage('Voice message sent', 'user', 'voice');
+    // Simulate agent response
+    setTimeout(() => {
+      addMessage('I heard your voice message! How can I help with your cooking?', 'agent');
+    }, 1000);
+  }, [addMessage]);
+
   // Handle typing indicators
   const handleTypingStart = useCallback(() => {
     if (!isTyping) {
       setIsTyping(true);
-      // Send typing indicator to agent (for demo purposes)
-      // In real implementation, this would be sent via LiveKit
+      // In a real implementation, you would send a typing event to the agent here
     }
   }, [isTyping]);
 
@@ -126,23 +127,6 @@ const ChatScreen: React.FC = () => {
       setIsTyping(false);
     }
   }, [isTyping]);
-
-  // Handle voice recording completion - add voice message when recording stops
-  useEffect(() => {
-    const wasRecording = voice.isRecording;
-
-    return () => {
-      // When recording stops, add a voice message
-      if (wasRecording && !voice.isRecording) {
-        addMessage('Voice message recorded', 'user', 'voice');
-
-        // Simulate agent response
-        setTimeout(() => {
-          addMessage('I heard your voice message! How can I help with your cooking?', 'agent');
-        }, 1000);
-      }
-    };
-  }, [voice.isRecording, addMessage]);
 
   // Handle settings button press
   const handleSettingsPress = () => {
@@ -180,172 +164,97 @@ const ChatScreen: React.FC = () => {
       </View>
 
       {/* Messages Area */}
-      <View style={[styles.messagesContainer, { backgroundColor: theme.colors.background }]}>
-        {messages.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
-              👋 Welcome to BakeBot!
-            </Text>
-            <Text style={[styles.emptyStateSubtitle, { color: theme.colors.textSecondary }]}>
-              I'm your AI sous chef. How can I help you today?
-            </Text>
-            <View style={styles.suggestedPrompts}>
-              <TouchableOpacity
-                style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                onPress={() => sendTextMessage("How do I make perfect sourdough?")}
-              >
-                <Text style={[styles.promptText, { color: theme.colors.text }]}>
-                  "How do I make perfect sourdough?"
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
-                onPress={() => sendTextMessage("Show me your bread technique")}
-              >
-                <Text style={[styles.promptText, { color: theme.colors.text }]}>
-                  "Show me your bread technique"
-                </Text>
-              </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -insets.bottom}
+      >
+        <View style={[styles.messagesContainer, { backgroundColor: theme.colors.background }]}>
+          {messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                👋 Welcome to BakeBot!
+              </Text>
+              <Text style={[styles.emptyStateSubtitle, { color: theme.colors.textSecondary }]}>
+                I'm your AI sous chef. How can I help you today?
+              </Text>
+              <View style={styles.suggestedPrompts}>
+                <TouchableOpacity
+                  style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                  onPress={() => handleSendMessage("How do I make perfect sourdough?")}
+                >
+                  <Text style={[styles.promptText, { color: theme.colors.text }]}>
+                    "How do I make perfect sourdough?"
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.promptButton, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }]}
+                  onPress={() => handleSendMessage("Show me your bread technique")}
+                >
+                  <Text style={[styles.promptText, { color: theme.colors.text }]}>
+                    "Show me your bread technique"
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <MessageBubble
-                message={item}
-                isUser={item.sender === 'user'}
-                showAvatar={true}
-                showTimestamp={true}
-                onPress={() => {
-                  // Handle message press (e.g., copy, reply)
-                  console.log('Message pressed:', item);
-                }}
-                onLongPress={() => {
-                  Alert.alert(
-                    'Message Options',
-                    `From: ${item.sender === 'user' ? 'You' : 'BakeBot'}\nTime: ${item.timestamp.toLocaleTimeString()}`,
-                    [
-                      { text: 'Copy', onPress: () => console.log('Copy message') },
-                      { text: 'Delete', onPress: () => console.log('Delete message'), style: 'destructive' },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                }}
-              />
-            )}
-            style={styles.messagesList}
-            contentContainerStyle={styles.messagesContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => {
-              // Auto-scroll when content size changes
-              if (messages.length > 0) {
-                scrollToBottom();
-              }
-            }}
-          />
-        )}
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <MessageBubble
+                  message={item}
+                  isUser={item.sender === 'user'}
+                  showAvatar={true}
+                  showTimestamp={true}
+                  onPress={() => {
+                    // Handle message press (e.g., copy, reply)
+                    console.log('Message pressed:', item);
+                  }}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Message Options',
+                      `From: ${item.sender === 'user' ? 'You' : 'BakeBot'}\nTime: ${item.timestamp.toLocaleTimeString()}`,
+                      [
+                        { text: 'Copy', onPress: () => console.log('Copy message') },
+                        { text: 'Delete', onPress: () => console.log('Delete message'), style: 'destructive' },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]
+                    );
+                  }}
+                />
+              )}
+              style={styles.messagesList}
+              contentContainerStyle={styles.messagesContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={scrollToBottom}
+            />
+          )}
 
-        {/* Agent typing indicator */}
-        {isAgentTyping && (
-          <View style={[styles.typingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Text style={[styles.typingText, { color: theme.colors.textSecondary }]}>
-              👨‍🍳 BakeBot is typing
-              <Text style={styles.typingDots}>.</Text>
-              <Text style={styles.typingDots}>.</Text>
-              <Text style={styles.typingDots}>.</Text>
-            </Text>
-          </View>
-        )}
-
-        {/* Voice recording indicator */}
-        {voice.isRecording && (
-          <View style={[styles.recordingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Text style={[styles.recordingText, { color: theme.colors.text }]}>
-              🎤 Recording... {Math.floor(voice.recordingDuration / 1000)}s
-            </Text>
-            <Text style={[styles.recordingHint, { color: theme.colors.textSecondary }]}>
-              {voice.voiceMode === 'push-to-talk' ? 'Release to send' : 'Tap to stop'}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Input Area */}
-      {showVoiceControls ? (
-        <VoiceControls
-          mode={voice.voiceMode}
-          onModeChange={(mode) => voice.setVoiceMode(mode)}
-          showModeSelector={true}
-          compact={false}
-        />
-      ) : (
-        <MessageInput
-          onSendMessage={sendTextMessage}
+          {/* Agent typing indicator */}
+          {isAgentTyping && (
+            <View style={[styles.typingIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
+              <Text style={[styles.typingText, { color: theme.colors.textSecondary }]}>
+                👨‍🍳 BakeBot is typing
+                <Text style={styles.typingDots}>.</Text>
+                <Text style={styles.typingDots}>.</Text>
+                <Text style={styles.typingDots}>.</Text>
+              </Text>
+            </View>
+          )}
+        </View>
+        <MultimodalInput
+          onSendMessage={handleSendMessage}
+          onSendVoiceMessage={handleSendVoiceMessage}
           onTypingStart={handleTypingStart}
           onTypingEnd={handleTypingEnd}
-          placeholder="Ask BakeBot about cooking..."
+          placeholder="Ask BakeBot..."
           maxLength={1000}
           disabled={!isConnected}
         />
-      )}
-
-      {/* Voice mode toggle when voice controls are hidden */}
-      {!showVoiceControls && (
-        <View style={[styles.voiceToggleRow, { borderTopColor: theme.colors.border, paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-          <TouchableOpacity
-            style={[
-              styles.voiceToggle,
-              voice.voiceMode === 'push-to-talk' && {
-                backgroundColor: theme.colors.primary,
-              }
-            ]}
-            onPress={() => {
-              voice.setVoiceMode('push-to-talk');
-              setShowVoiceControls(true);
-            }}
-          >
-            <Text style={[
-              styles.voiceToggleText,
-              { color: voice.voiceMode === 'push-to-talk' ? 'white' : theme.colors.text }
-            ]}>
-              🎙️ Push to Talk
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.voiceToggle,
-              voice.voiceMode === 'continuous' && {
-                backgroundColor: theme.colors.primary,
-              }
-            ]}
-            onPress={() => {
-              voice.setVoiceMode('continuous');
-              setShowVoiceControls(true);
-            }}
-          >
-            <Text style={[
-              styles.voiceToggleText,
-              { color: voice.voiceMode === 'continuous' ? 'white' : theme.colors.text }
-            ]}>
-              🔄 Continuous
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.collapseButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            onPress={() => setShowVoiceControls(false)}
-          >
-            <Text style={[styles.collapseButtonText, { color: theme.colors.textSecondary }]}>
-              ▼
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -429,51 +338,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: 'italic',
     opacity: 0.6,
-  },
-    recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  recordingText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  recordingHint: {
-    fontSize: 12,
-  },
-    voiceToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    gap: 8,
-  },
-  voiceToggle: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  voiceToggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  collapseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  collapseButtonText: {
-    fontSize: 12,
   },
 });
 
