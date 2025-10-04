@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Animated } from 'react-native';
 import { cn } from '../../utils/cn';
 import { VoiceWaveformProps } from '../../types/message.types';

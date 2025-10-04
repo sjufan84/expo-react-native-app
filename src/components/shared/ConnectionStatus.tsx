@@ -48,7 +48,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ onRetry }) => {
       case 'FAILED':
         return {
           variant: 'destructive' as const,
-          text: error?.message || 'Connection failed',
+          text: error || 'Connection failed',
           icon: '❌',
           showRetry: !!onRetry,
         };

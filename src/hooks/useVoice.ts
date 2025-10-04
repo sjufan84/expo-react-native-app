@@ -20,7 +20,7 @@ export interface UseVoiceReturn {
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   toggleRecording: () => Promise<void>;
-  toggleMute: () => void;
+  toggleMute: (force?: boolean) => void;
   setVoiceMode: (mode: 'push-to-talk' | 'continuous') => void;
 
   // Setup
@@ -208,8 +208,8 @@ export const useVoice = (): UseVoiceReturn => {
   }, [isRecording, startRecording, stopRecording]);
 
   // Toggle mute
-  const toggleMute = useCallback((): void => {
-    const newMutedState = !isMuted;
+  const toggleMute = useCallback((force?: boolean): void => {
+    const newMutedState = force === undefined ? !isMuted : force;
     audioService.setMuted(newMutedState);
     setIsMuted(newMutedState);
     console.log(`Audio ${newMutedState ? 'muted' : 'unmuted'}`);

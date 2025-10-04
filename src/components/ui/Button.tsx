@@ -1,6 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { Colors } from '../../theme/colors';
+import { TouchableOpacity, Text } from 'react-native';
 import { cva, VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils/cn';
 
@@ -46,6 +45,7 @@ const buttonTextVariants = cva(
         default: 'text-base',
         sm: 'text-sm',
         lg: 'text-lg',
+        icon: 'text-base',
       },
     },
     defaultVariants: {
@@ -61,7 +61,7 @@ export interface ButtonProps extends React.ComponentPropsWithoutRef<typeof Touch
   textClassName?: string;
 }
 
-const Button = React.forwardRef<TouchableOpacity, ButtonProps>(
+const Button = React.forwardRef<React.ElementRef<typeof TouchableOpacity>, ButtonProps>(
   ({ className, textClassName, variant, size, children, ...props }, ref) => {
     return (
       <TouchableOpacity

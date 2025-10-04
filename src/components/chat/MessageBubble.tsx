@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { Message } from '../../types/message.types';
 import { cn } from '../../utils/cn';

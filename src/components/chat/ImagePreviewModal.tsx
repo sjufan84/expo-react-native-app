@@ -81,10 +81,10 @@ const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             format: 'jpeg' as const,
             includeBase64: true,
           };
-          const processed = await ImageProcessingService.processImage(image, options, (p) => setProcessingProgress(p));
+          const processed = await ImageProcessingService.processImage(image, options);
           setProcessedImage(processed);
           setProcessingProgress(1);
-        } catch (error) {
+        } catch {
           Alert.alert('Processing Error', 'Failed to process the image.', [{ text: 'OK', onPress: onClose }]);
         } finally {
           setIsProcessing(false);
@@ -130,7 +130,7 @@ const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   source={{ uri: image.uri }}
                   style={{ width: imageDimensions.width, height: imageDimensions.height }}
                   className="rounded-lg bg-white/5"
-                  contentFit="contain"
+                  resizeMode="contain"
                 />
                 <View className="items-center mt-3">
                   <Text className="text-sm font-medium text-white/80">

@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { cn } from '../utils/cn';
 
 const SettingsScreen: React.FC = () => {
   const { colorScheme, toggleColorScheme } = useColorScheme();

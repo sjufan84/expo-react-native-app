@@ -41,9 +41,10 @@ export interface MessageBubbleProps {
 }
 
 export interface VoiceWaveformProps {
-  audioLevel: number; // 0-100
-  isActive: boolean;
-  color: string;
+  audioLevel?: number; // 0-100
+  isActive?: boolean;
+  color?: string;
+  className?: string;
 }
 
 export interface ConnectionStatusProps {
@@ -76,6 +77,7 @@ export interface SessionConfig {
   voiceMode?: 'push-to-talk' | 'continuous';
   isMuted?: boolean;
   turnDetection?: 'server' | 'client' | 'none';
+  isAgentTyping?: boolean;
 }
 
 export interface AudioData {
@@ -119,4 +121,12 @@ export interface ProcessedImageResult {
   type: string;
   base64?: string;
   compressionRatio?: number;
+}
+
+export interface ProcessingOptions {
+  maxWidth: number;
+  maxHeight: number;
+  quality: number;
+  format: 'jpeg' | 'png';
+  includeBase64?: boolean;
 }

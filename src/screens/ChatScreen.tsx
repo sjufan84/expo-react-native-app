@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,8 @@ import MultimodalInput from '../components/chat/MultimodalInput';
 import SessionIndicator from '../components/shared/SessionIndicator';
 import VoiceSessionControls from '../components/voice/VoiceSessionControls';
 import EmptyState from '../components/shared/EmptyState';
-import { Message } from '../types/message.types';
 import { useVoice } from '../hooks/useVoice';
 import { Button } from '../components/ui/Button';
-import { cn } from '../utils/cn';
 import { Badge } from '../components/ui/Badge';
 import { useColorScheme } from 'nativewind';
 
