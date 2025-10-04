@@ -1,11 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Platform } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import { ImageResult } from '../types/message.types';
-import {
-  handleError,
-  type AppError
-} from '../utils/errorRecovery';
+import { handleError } from '../utils/errorRecovery';
 import { createErrorContext } from '../types/error.types';
 
 export interface ProcessedImageResult {
@@ -152,7 +150,13 @@ export class ImageProcessingService {
         }
       );
 
-      const appError = await handleError(error, errorContext);
+      const appError = await handleError(error as Error, 'processImage', 'ImageProcessingService', {
+        imageUri: imageResult.uri,
+        originalSize: `${imageResult.width}x${imageResult.height}`,
+        originalFileSize: imageResult.fileSize,
+        options: finalOptions,
+        platform: Platform.OS
+      });
       throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

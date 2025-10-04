@@ -1,10 +1,10 @@
+"""Main entry point for the BakeBot agent."""
 import asyncio
 import logging
 import os
+import sys
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import JobContext, JobProcess, WorkerOptions, cli
-from livekit.agents.llm import ChatContext
 from agent.bakebot_agent import BakeBotAgent
 
 # Load environment variables
@@ -13,16 +13,16 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-def prewarm(proc: JobProcess):
+def prewarm(proc: JobProcess) -> None:
     """Pre-warm the agent process."""
     logger.info("Prewarming BakeBot agent...")
     # Add any pre-warming logic here (e.g., loading models)
 
-async def job_request_cb(job: JobContext):
+async def job_request_cb(job: JobContext)->None:
     """Handle job requests from LiveKit."""
     logger.info(f"Received job request: {job.job.metadata}")
 
@@ -35,7 +35,7 @@ async def job_request_cb(job: JobContext):
 
         # Keep the agent running
         while True:
-            await asyncio.sleep(1)
+            await asyncio.Event().wait()
 
     except Exception as e:
         logger.error(f"Error in job {job.job.id}: {e}")
@@ -46,18 +46,18 @@ async def job_request_cb(job: JobContext):
 
 if __name__ == "__main__":
     # Validate required environment variables
-    required_vars = ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'GOOGLE_API_KEY']
+    required_vars = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "GOOGLE_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
         logger.error(f"Missing required environment variables: {missing_vars}")
-        exit(1)
+        sys.exit(1)
 
     # Configure worker options
     worker_options = WorkerOptions(
         entrypoint_fnc=job_request_cb,
         prewarm_fnc=prewarm,
-        agent_name=os.getenv('AGENT_NAME', 'BakeBot'),
+        agent_name=os.getenv("AGENT_NAME", "BakeBot"),
     )
 
     # Start the worker

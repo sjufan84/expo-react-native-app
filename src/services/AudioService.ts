@@ -1,12 +1,10 @@
 
-import { Room, LocalAudioTrack, Track } from 'livekit-client';
+import { Room, LocalAudioTrack } from 'livekit-client';
 import { AUDIO_CONFIG, ERROR_MESSAGES } from '../utils/constants';
 import { Platform } from 'react-native';
 import {
-  handleError,
-  type AppError
+  handleError
 } from '../utils/errorRecovery';
-import { createErrorContext } from '../types/error.types';
 
 export interface AudioLevel {
   level: number; // 0-1
@@ -20,6 +18,11 @@ export interface AudioRecordingData {
   channels: number;
   sampleRate: number;
   bitRate: number;
+}
+
+interface AudioAnalyzer {
+  frequencyBinCount: number;
+  getByteFrequencyData: (dataArray: Uint8Array) => void;
 }
 
 export class AudioService {
@@ -140,18 +143,18 @@ export class AudioService {
     if (!this.audioTrack) return;
 
     // Listen for track mute/unmute events
-    this.audioTrack.on(Track.Event.Muted, () => {
+    this.audioTrack.on('muted', () => {
       console.log('Audio track muted');
       this.isMuted = true;
     });
 
-    this.audioTrack.on(Track.Event.Unmuted, () => {
+    this.audioTrack.on('unmuted', () => {
       console.log('Audio track unmuted');
       this.isMuted = false;
     });
 
     // Listen for track end events
-    this.audioTrack.on(Track.Event.Ended, () => {
+    this.audioTrack.on('ended', () => {
       console.log('Audio track ended');
       this.audioTrack = null;
     });
@@ -195,7 +198,8 @@ export class AudioService {
         await this.audioTrack.unmute();
       }
 
-      await this.audioTrack.setEnabled(true);
+      // Note: setEnabled is not available in React Native LiveKit
+      // Track is enabled by default when published
 
       this.isRecording = true;
       this.recordingStartTime = Date.now();
@@ -206,7 +210,7 @@ export class AudioService {
       console.log('Audio recording started with track:', this.audioTrack.sid);
 
       // Development mode fallback
-      if (__DEV__ && !this.audioTrack.getAnalyzer) {
+      if (__DEV__ && !this.hasAnalyzer()) {
         console.log('🔧 Development Mode: Mock recording (no analyzer available)');
         this.startMockAudioLevelMonitoring();
       }
@@ -216,7 +220,8 @@ export class AudioService {
       this.isRecording = false;
 
       // Handle error through recovery system
-      const errorContext = createErrorContext(
+      await handleError(
+        error as Error,
         'startRecording',
         'AudioService',
         {
@@ -226,8 +231,6 @@ export class AudioService {
           platform: Platform.OS
         }
       );
-
-      const appError = await handleError(error, errorContext);
       throw error;
     }
   }
@@ -306,7 +309,8 @@ export class AudioService {
       this.stopAudioLevelMonitoring();
 
       // Handle error through recovery system
-      const errorContext = createErrorContext(
+      await handleError(
+        error as Error,
         'stopRecording',
         'AudioService',
         {
@@ -316,8 +320,6 @@ export class AudioService {
           platform: Platform.OS
         }
       );
-
-      const appError = await handleError(error, errorContext);
       throw error;
     }
   }
@@ -400,13 +402,13 @@ export class AudioService {
   /**
    * Get real audio level from LiveKit track
    */
-  private getRealAudioLevel(): number {
+  getRealAudioLevel(): number {
     if (!this.audioTrack || !this.isRecording) return 0;
 
     try {
       // Try to get audio level from LiveKit track analyzer
-      if (this.audioTrack.getAnalyzer) {
-        const analyzer = this.audioTrack.getAnalyzer();
+      if (this.hasAnalyzer()) {
+        const analyzer = this.getAnalyzer();
         if (analyzer) {
           // Get frequency data for audio level calculation
           const bufferLength = analyzer.frequencyBinCount;
@@ -470,7 +472,6 @@ export class AudioService {
     if (this.audioTrack && this.audioTrack.mediaStream) {
       const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
       audioTracks.forEach(track => {
-        // @ts-ignore - React Native WebAudio constraints
         const constraints = track.getConstraints();
         if (constraints.echoCancellation !== undefined) {
           track.applyConstraints({
@@ -496,7 +497,6 @@ export class AudioService {
     if (this.audioTrack && this.audioTrack.mediaStream) {
       const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
       audioTracks.forEach(track => {
-        // @ts-ignore - React Native WebAudio constraints
         const constraints = track.getConstraints();
         if (constraints.noiseSuppression !== undefined) {
           track.applyConstraints({
@@ -522,7 +522,6 @@ export class AudioService {
     if (this.audioTrack && this.audioTrack.mediaStream) {
       const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
       audioTracks.forEach(track => {
-        // @ts-ignore - React Native WebAudio constraints
         const constraints = track.getConstraints();
         if (constraints.autoGainControl !== undefined) {
           track.applyConstraints({
@@ -574,10 +573,8 @@ export class AudioService {
       if (this.audioTrack.mediaStream) {
         const audioTracks = this.audioTrack.mediaStream.getAudioTracks();
         audioTracks.forEach(track => {
-          // @ts-ignore - React Native specific optimizations
           if (track.applyConstraints) {
             track.applyConstraints({
-              latency: 0.01, // Target 10ms latency
               sampleRate: AUDIO_CONFIG.sampleRate,
               channelCount: AUDIO_CONFIG.channels,
             }).catch(error => {
@@ -591,6 +588,23 @@ export class AudioService {
     } catch (error) {
       console.warn('Failed to optimize for low latency:', error);
     }
+  }
+
+  /**
+   * Check if audio track has analyzer capability
+   */
+  private hasAnalyzer(): boolean {
+    return !!(this.audioTrack && 'getAnalyzer' in this.audioTrack);
+  }
+
+  /**
+   * Get audio analyzer if available
+   */
+  private getAnalyzer(): AudioAnalyzer | null {
+    if (!this.audioTrack || !('getAnalyzer' in this.audioTrack)) {
+      return null;
+    }
+    return (this.audioTrack as LocalAudioTrack & { getAnalyzer: () => AudioAnalyzer }).getAnalyzer();
   }
 
   /**

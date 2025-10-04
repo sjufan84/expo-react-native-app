@@ -110,8 +110,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           },
         ]
       );
-    } else if (onLongPress) {
-      onLongPress(message);
     }
   };
 

@@ -1,11 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   AppError,
-  ErrorType,
   ErrorContext,
   ErrorCategory,
   RecoveryStrategy,
-  ErrorSeverity,
   CircuitBreakerState,
   ErrorRecoveryConfig,
   ErrorRecoveryStats,
@@ -14,7 +13,6 @@ import {
   ErrorRecoveryManager,
   matchErrorType,
   createErrorContext,
-  ERROR_TYPES,
 } from '../types/error.types';
 
 /**
@@ -140,6 +138,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
     const error = this.errors.get(errorId);
     if (!error) {
       return {
+        requiresUserAction: false,
         success: false,
         error: undefined,
         action: 'recover_error',
@@ -167,6 +166,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
       this.logError('Manual recovery failed', error.type.id, error, recoveryError);
 
       return {
+        requiresUserAction: false,
         success: false,
         error,
         action: 'recover_error',
@@ -445,6 +445,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
 
       return result;
     } catch (recoveryError) {
+      console.error('Recovery Error', recoveryError);
       const duration = Date.now() - startTime;
       this.recordFailure(error.type.category);
 
@@ -454,6 +455,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
         action: 'recovery_exception',
         timestamp: new Date(),
         duration,
+        requiresUserAction: false,
         userMessage: 'Recovery process failed',
       };
     }
@@ -465,6 +467,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
   private async executeImmediateRetry(error: AppError): Promise<boolean> {
     // For immediate retry, we typically retry the original operation
     // This would be implemented by the component that owns the error
+    console.log('Execute Immediate Retry', error);
     return Math.random() > 0.3; // 70% success rate for simulation
   }
 
@@ -472,23 +475,27 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
     // Simulate exponential backoff recovery
     const delay = error.type.baseDelay * Math.pow(error.type.backoffMultiplier, error.attemptCount - 1);
     await new Promise(resolve => setTimeout(resolve, Math.min(delay, error.type.maxDelay)));
+    console.log('Execute Exponential Backoff', error);
     return Math.random() > 0.2; // 80% success rate
   }
 
   private async executeLinearRetry(error: AppError): Promise<boolean> {
     // Simulate linear retry recovery
     await new Promise(resolve => setTimeout(resolve, error.type.baseDelay));
+    console.log('Execute Linear Retry', error);
     return Math.random() > 0.25; // 75% success rate
   }
 
   private async executeSessionRestart(error: AppError): Promise<boolean> {
     // Simulate session restart
     await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('Execute Session Restart', error);
     return Math.random() > 0.15; // 85% success rate
   }
 
   private async executeGracefulDegradation(error: AppError): Promise<boolean> {
     // Graceful degradation always succeeds but may have reduced functionality
+    console.log('Execute Graceful Degradation', error);
     return true;
   }
 
@@ -506,6 +513,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
   }
 
   private createCircuitBreaker(category: ErrorCategory): CircuitBreakerState {
+    console.log('Create Circuit Breaker', category);
     return {
       isOpen: false,
       failureCount: 0,
@@ -636,6 +644,7 @@ export class ErrorRecoverySystem implements ErrorRecoveryManager {
    */
   private async persistError(error: AppError): Promise<void> {
     try {
+      console.log('Persist Error', error);
       const errorsToPersist = Array.from(this.errors.values())
         .filter(e => e.type.severity === 'critical' || e.isPermanentFailure)
         .slice(-this.config.retention.maxErrorsInMemory);

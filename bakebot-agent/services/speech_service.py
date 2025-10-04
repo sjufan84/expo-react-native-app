@@ -1,11 +1,7 @@
-import os
 import logging
 import asyncio
-from typing import Optional, AsyncGenerator
 from google.cloud import speech
 from google.cloud import texttospeech
-import tempfile
-import io
 from livekit import rtc
 from livekit.agents import stt, tts
 
@@ -48,7 +44,7 @@ class SpeechService:
             # Perform streaming transcription
             responses = self.speech_client.streaming_recognize(
                 config=self.streaming_config,
-                requests=iter(requests)
+                requests=iter(requests),
             )
 
             # Collect results
@@ -83,8 +79,8 @@ class GoogleStreamSTT(stt.STT):
             use_enhanced=True,
             # Optimize for low latency
             adaptation_config=speech.SpeechAdaptation(
-                phrase_sets=[speech.SpeechContext(phrases=["BakeBot", "recipe", "ingredient", "temperature", "oven", "stove"])]
-            )
+                phrase_sets=[speech.SpeechContext(phrases=["BakeBot", "recipe", "ingredient", "temperature", "oven", "stove"])],
+            ),
         )
         self._streaming_config = speech.StreamingRecognitionConfig(
             config=self._config,
@@ -98,7 +94,7 @@ class GoogleStreamSTT(stt.STT):
         """Not used in streaming mode."""
         return stt.SpeechEvent(
             type=stt.SpeechEventType.END_OF_SPEECH,
-            alternatives=[stt.SpeechData(text="")]
+            alternatives=[stt.SpeechData(text="")],
         )
 
     async def stream(self) -> stt.SpeechStream:
@@ -122,7 +118,7 @@ class GoogleSTTStream(stt.SpeechStream):
         # Start the streaming session
         self._stream = self._client.streaming_recognize(
             config=self._streaming_config,
-            requests=self._generate_requests()
+            requests=self._generate_requests(),
         )
         self._task = asyncio.create_task(self._process_responses())
         return self
@@ -157,8 +153,8 @@ class GoogleSTTStream(stt.SpeechStream):
                         type=stt.SpeechEventType.FINAL_TRANSCRIPT,
                         alternatives=[stt.SpeechData(
                             text=alternative.transcript,
-                            confidence=alternative.confidence or 0.0
-                        )]
+                            confidence=alternative.confidence or 0.0,
+                        )],
                     )
                     await self._queue.put(speech_event)
         except Exception as e:
@@ -172,7 +168,6 @@ class GoogleSTTStream(stt.SpeechStream):
 
     async def flush(self):
         """Flush pending audio."""
-        pass
 
 class GoogleStreamTTS(tts.TTS):
     """Google Cloud Streaming Text-to-Speech adapter for LiveKit."""
@@ -184,7 +179,7 @@ class GoogleStreamTTS(tts.TTS):
             language_code="en-US",
             ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
             # Use WaveNet for higher quality and lower latency
-            name="en-US-Wavenet-F"
+            name="en-US-Wavenet-F",
         )
         self._audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
@@ -201,23 +196,23 @@ class GoogleStreamTTS(tts.TTS):
             response = self._client.synthesize_speech(
                 input=synthesis_input,
                 voice=self._voice_params,
-                audio_config=self._audio_config
+                audio_config=self._audio_config,
             )
 
             return rtc.AudioFrame(
                 data=response.audio_content,
                 sample_rate=16000,
                 num_channels=1,
-                samples_per_channel=len(response.audio_content) // 2
+                samples_per_channel=len(response.audio_content) // 2,
             )
         except Exception as e:
             logger.error(f"Error synthesizing speech: {e}")
             # Return empty frame
             return rtc.AudioFrame(
-                data=b'',
+                data=b"",
                 sample_rate=16000,
                 num_channels=1,
-                samples_per_channel=0
+                samples_per_channel=0,
             )
 
     async def stream(self) -> tts.SynthesizeStream:
@@ -245,7 +240,7 @@ class GoogleTTSStream(tts.SynthesizeStream):
             response = self._client.synthesize_speech(
                 input=synthesis_input,
                 voice=self._voice_params,
-                audio_config=self._audio_config
+                audio_config=self._audio_config,
             )
 
             # Create audio frame and push to queue
@@ -253,7 +248,7 @@ class GoogleTTSStream(tts.SynthesizeStream):
                 data=response.audio_content,
                 sample_rate=16000,
                 num_channels=1,
-                samples_per_channel=len(response.audio_content) // 2
+                samples_per_channel=len(response.audio_content) // 2,
             )
             await self._queue.put(frame)
 
@@ -262,11 +257,9 @@ class GoogleTTSStream(tts.SynthesizeStream):
 
     async def flush(self):
         """Flush pending text."""
-        pass
 
     async def mark_segment_end(self):
         """Mark the end of a segment."""
-        pass
 
     async def synthesize_speech(self, text: str, voice_gender: str = "FEMALE") -> bytes:
         """Convert text to speech using Google Text-to-Speech."""
@@ -274,7 +267,7 @@ class GoogleTTSStream(tts.SynthesizeStream):
             # Configure voice
             voice_selection_params = texttospeech.VoiceSelectionParams(
                 language_code="en-US",
-                ssml_gender=texttospeech.SsmlVoiceGender[voice_gender]
+                ssml_gender=texttospeech.SsmlVoiceGender[voice_gender],
             )
 
             # Configure audio output
@@ -291,7 +284,7 @@ class GoogleTTSStream(tts.SynthesizeStream):
             response = self.tts_client.synthesize_speech(
                 input=synthesis_input,
                 voice=voice_selection_params,
-                audio_config=audio_config
+                audio_config=audio_config,
             )
 
             return response.audio_content

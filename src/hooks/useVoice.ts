@@ -1,12 +1,12 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Alert, Platform } from 'react-native';
-import { Room, LocalAudioTrack, Track } from 'livekit-client';
+import { Alert } from 'react-native';
+import { Room, LocalAudioTrack } from 'livekit-client';
 import { audioService } from '../services/AudioService';
 import { useAgent } from '../context/AgentContext';
 import { useLiveKit } from '../hooks/useLiveKit';
-import { ERROR_MESSAGES, AUDIO_CONFIG } from '../utils/constants';
-import { DataChannelMessage, SessionConfig } from '../types/message.types';
+import { ERROR_MESSAGES } from '../utils/constants';
+import { DataChannelMessage } from '../types/message.types';
 
 export interface VoiceActivityDetection {
   isActive: boolean;
@@ -80,41 +80,26 @@ export const useVoice = (): UseVoiceReturn => {
       if (!audioTrackRef.current || !isRecording) return;
 
       try {
-        // Get audio level from LiveKit LocalAudioTrack
-        const audioTrack = audioTrackRef.current;
+        // In React Native, we use the audioService for audio level monitoring
+        // The AudioService handles the analyzer logic internally
+        try {
+          // Get audio level from the audio service
+          const level = audioService.getRealAudioLevel();
+          setAudioLevel(level);
 
-        // In React Native, we monitor audio levels through the track's analyzer
-        if (audioTrack.getAnalyzer) {
-          const analyzer = audioTrack.getAnalyzer();
-          if (analyzer) {
-            const float32Array = new Float32Array(analyzer.fftSize);
-            analyzer.getFloatFrequencyData(float32Array);
+          // Update voice activity for VAD
+          const newVoiceActivity: VoiceActivityDetection = {
+            isActive: level > 0.05, // Threshold for voice activity
+            level: level,
+            timestamp: Date.now(),
+          };
+          setVoiceActivity(newVoiceActivity);
 
-            // Calculate RMS (Root Mean Square) for audio level
-            let sum = 0;
-            for (let i = 0; i < float32Array.length; i++) {
-              const amplitude = Math.pow(10, float32Array[i] / 20);
-              sum += amplitude * amplitude;
-            }
-            const rms = Math.sqrt(sum / float32Array.length);
-            const normalizedLevel = Math.min(1, Math.max(0, rms * 10)); // Normalize to 0-1
-
-            setAudioLevel(normalizedLevel);
-
-            // Update voice activity for VAD
-            const newVoiceActivity: VoiceActivityDetection = {
-              isActive: normalizedLevel > 0.05, // Threshold for voice activity
-              level: normalizedLevel,
-              timestamp: Date.now(),
-            };
-            setVoiceActivity(newVoiceActivity);
-
-            // Handle continuous mode with VAD
-            if (voiceMode === 'continuous' && newVoiceActivity.isActive) {
-              handleVoiceActivityDetection(newVoiceActivity);
-            }
+          // Handle continuous mode with VAD
+          if (voiceMode === 'continuous' && newVoiceActivity.isActive) {
+            handleVoiceActivityDetection(newVoiceActivity);
           }
-        } else {
+        } catch {
           // Fallback for development mode or when analyzer is not available
           const mockLevel = isRecording ? Math.random() * 0.8 : 0;
           setAudioLevel(mockLevel);
@@ -200,7 +185,7 @@ export const useVoice = (): UseVoiceReturn => {
         const audioPublication = audioPublications[0];
         audioTrackRef.current = audioPublication.track as LocalAudioTrack;
         setHasAudioTrack(true);
-        setAudioTrackId(audioTrackRef.current.sid);
+        setAudioTrackId(audioTrackRef.current.sid || null);
 
         console.log('Audio track initialized:', audioTrackRef.current.sid);
       }
@@ -279,7 +264,11 @@ export const useVoice = (): UseVoiceReturn => {
       } else {
         // Ensure audio track is enabled
         if (audioTrackRef.current) {
-          await audioTrackRef.current.setEnabled(true);
+          // In React Native LiveKit, tracks are enabled by default when published
+          // We can check if the track is muted and unmute it if needed
+          if (audioTrackRef.current.isMuted) {
+            await audioTrackRef.current.unmute();
+          }
           setHasAudioTrack(true);
         }
       }

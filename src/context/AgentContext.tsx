@@ -13,11 +13,13 @@ import {
   removeErrorListener,
   getErrorStats,
   getActiveErrors,
+} from '../utils/errorRecovery';
+import {
   type ErrorListener,
   type AppError,
   type RecoveryActionResult,
   type CircuitBreakerState
-} from '../utils/errorRecovery';
+} from '../types/error.types';
 import { createErrorContext } from '../types/error.types';
 // import { LIVEKIT_CONFIG } from '../utils/constants';
 

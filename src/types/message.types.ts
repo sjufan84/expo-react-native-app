@@ -119,9 +119,6 @@ export interface SessionValidationResult {
   inconsistencies: string[];
   corrections: Partial<SessionConfig>;
   needsResync: boolean;
-=======
-  isAgentTyping?: boolean;
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
 }
 
 export interface AudioData {
@@ -232,12 +229,12 @@ export interface TypingState {
   agentTyping: boolean;
   lastUserActivity?: number;
   lastAgentActivity?: number;
-=======
+}
+
 export interface ProcessingOptions {
   maxWidth: number;
   maxHeight: number;
   quality: number;
   format: 'jpeg' | 'png';
   includeBase64?: boolean;
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
 }

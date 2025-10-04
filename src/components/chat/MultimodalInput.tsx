@@ -103,77 +103,47 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     })
   ).current;
 
-<<<<<<< HEAD
-  // Handle typing indicators with debouncing (500ms delay)
-  const handleTypingIndicator = useCallback((isTyping: boolean) => {
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
+// Handle typing indicators with debouncing (500ms delay)
+const handleTypingIndicator = useCallback((isTyping: boolean) => {
+  // Clear existing timeout
+  if (typingTimeoutRef.current) {
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = null;
+  }
 
-    if (isTyping) {
-      // Send typing start indicator only if not already typing
-      if (!isTypingRef.current) {
-        isTypingRef.current = true;
-        sendUserTypingIndicator(true);
-        onTypingStart?.();
-=======
-  const handleTypingStart = useCallback(() => {
-    if (!isTyping && message.trim().length > 0) {
-      setIsTyping(true);
+  if (isTyping) {
+    // Send typing start indicator only if not already typing
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      sendUserTypingIndicator(true);
       onTypingStart?.();
     }
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    // Set timeout to automatically stop typing after 500ms of inactivity
     typingTimeoutRef.current = setTimeout(() => {
-      if (isTyping) {
-        setIsTyping(false);
-        onTypingEnd?.();
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
-      }
-
-<<<<<<< HEAD
-      // Set timeout to automatically stop typing after 500ms of inactivity
-      typingTimeoutRef.current = setTimeout(() => {
-        isTypingRef.current = false;
-        sendUserTypingIndicator(false);
-        onTypingEnd?.();
-      }, 500);
-    } else {
-      // Send typing stop indicator
       isTypingRef.current = false;
       sendUserTypingIndicator(false);
       onTypingEnd?.();
-    }
-  }, [sendUserTypingIndicator, onTypingStart, onTypingEnd]);
+    }, 500);
+  } else {
+    // Send typing stop indicator
+    isTypingRef.current = false;
+    sendUserTypingIndicator(false);
+    onTypingEnd?.();
+  }
+}, [sendUserTypingIndicator, onTypingStart, onTypingEnd]);
 
   // Handle text change with debounced typing detection
-=======
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
   const handleTextChange = useCallback((text: string) => {
     if (text.length > maxLength) {
       Alert.alert('Message Too Long', `Maximum message length is ${maxLength} characters.`);
       return;
     }
     setMessage(text);
-<<<<<<< HEAD
 
     // Trigger typing indicator if user is actually typing (non-empty text)
     const hasText = text.trim().length > 0;
     handleTypingIndicator(hasText);
   }, [maxLength, handleTypingIndicator]);
-=======
-    if (text.trim().length > 0) {
-      handleTypingStart();
-    } else {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (isTyping) {
-        setIsTyping(false);
-        onTypingEnd?.();
-      }
-    }
-  }, [maxLength, handleTypingStart, isTyping, onTypingEnd]);
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
 
   const handleSendMessage = useCallback(() => {
     const trimmedMessage = message.trim();
@@ -184,23 +154,14 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
     }
     onSendMessage(trimmedMessage);
     setMessage('');
-<<<<<<< HEAD
 
     // Stop typing indicator
     handleTypingIndicator(false);
 
     // Keep focus on input for continuous messaging
-=======
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    if (isTyping) {
-      setIsTyping(false);
-      onTypingEnd?.();
-    }
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
     inputRef.current?.focus();
   }, [message, isConnected, onSendMessage, handleTypingIndicator]);
 
-<<<<<<< HEAD
   // Handle keyboard submit
   const handleKeyPress = useCallback((e: any) => {
     if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
@@ -224,8 +185,6 @@ const MultimodalInput: React.FC<MultimodalInputProps> = ({
   }, [sendUserTypingIndicator]);
 
   // Handle image selection
-=======
->>>>>>> 945da23834d50220991d0f9469e1e334868cbf0d
   const handleImageSelection = useCallback(async () => {
     if (!isConnected) {
       Alert.alert('Not Connected', 'Please wait for the connection to be established.');

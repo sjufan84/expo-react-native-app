@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,6 @@ import {
   AppError,
   ErrorSeverity,
   ErrorCategory,
-  RecoveryStrategy,
-  CircuitBreakerState,
   RecoveryActionResult,
 } from '../../types/error.types';
 
@@ -55,15 +53,15 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
   const getSeverityColor = (severity: ErrorSeverity) => {
     switch (severity) {
       case 'critical':
-        return theme.colors.error;
+        return theme.theme.colors.error;
       case 'high':
-        return theme.colors.error;
+        return theme.theme.colors.error;
       case 'medium':
-        return theme.colors.warning;
+        return theme.theme.colors.warning;
       case 'low':
-        return theme.colors.info;
+        return theme.theme.colors.info;
       default:
-        return theme.colors.text;
+        return theme.theme.colors.text;
     }
   };
 
@@ -115,6 +113,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
         Alert.alert('Recovery Failed', result.userMessage || 'Unable to recover from this error automatically.');
       }
     } catch (error) {
+      console.error('Recovery Error', error);
       Alert.alert('Recovery Error', 'An error occurred during recovery process.');
     } finally {
       setIsRecovering(false);
@@ -143,6 +142,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
         Alert.alert('Retry Failed', 'Retry attempt failed. You may need to try again later.');
       }
     } catch (error) {
+      console.error('Retry Error', error);
       Alert.alert('Retry Error', 'An error occurred during retry.');
     } finally {
       setIsRetrying(false);
@@ -161,7 +161,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
       style={[
         styles.errorItem,
         {
-          backgroundColor: theme.colors.card,
+          backgroundColor: theme.theme.colors.card,
           borderColor: getSeverityColor(error.type.severity),
           opacity: fadeAnim,
         },
@@ -178,7 +178,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
             <Text
               style={[
                 styles.errorTitle,
-                { color: theme.colors.text, fontWeight: '600' },
+                { color: theme.theme.colors.text, fontWeight: '600' },
               ]}
               numberOfLines={1}
             >
@@ -187,7 +187,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
             <Text
               style={[
                 styles.errorTime,
-                { color: theme.colors.textSecondary },
+                { color: theme.theme.colors.textSecondary },
               ]}
             >
               {formatTime(error.timestamp)}
@@ -196,14 +196,14 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
         </View>
 
         <View style={styles.errorHeaderRight}>
-          {error.attemptCount > 0 && (
+          {error.attemptCount > 0 && (    
             <View style={styles.attemptBadge}>
-              <Text style={[styles.attemptText, { color: theme.colors.text }]}>
+              <Text style={[styles.attemptText, { color: theme.theme. colors.text }]}>
                 {error.attemptCount}/{error.type.maxRetries}
               </Text>
             </View>
           )}
-          <Text style={[styles.expandIcon, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.expandIcon, { color: theme.theme.colors.textSecondary }]}>
             {isExpanded ? '▼' : '▶'}
           </Text>
         </View>
@@ -214,21 +214,21 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
           <Text
             style={[
               styles.errorMessage,
-              { color: theme.colors.text },
+              { color: theme.theme.colors.text },
             ]}
           >
             {error.type.userMessage}
           </Text>
-
+            
           <View style={styles.errorMeta}>
-            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.metaText, { color: theme.theme.colors.textSecondary }]}>
               Category: {error.type.category}
             </Text>
-            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.metaText, { color: theme.theme.colors.textSecondary }]}>
               Severity: {error.type.severity}
             </Text>
             {error.context.operation && (
-              <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.metaText, { color: theme.theme.colors.textSecondary }]}>
                 Operation: {error.context.operation}
               </Text>
             )}
@@ -241,12 +241,12 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
                   style={[
                     styles.actionButton,
                     styles.recoverButton,
-                    { backgroundColor: theme.colors.primary },
+                    { backgroundColor: theme.theme.colors.primary },
                   ]}
                   onPress={handleRecover}
                   disabled={isRecovering}
                 >
-                  <Text style={[styles.actionButtonText, { color: theme.colors.background }]}>
+                  <Text style={[styles.actionButtonText, { color: theme.theme.colors.background }]}>
                     {isRecovering ? 'Recovering...' : 'Recover'}
                   </Text>
                 </TouchableOpacity>
@@ -257,12 +257,12 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
                   style={[
                     styles.actionButton,
                     styles.retryButton,
-                    { backgroundColor: theme.colors.secondary },
+                    { backgroundColor: theme.theme.colors.secondary },
                   ]}
                   onPress={handleRetry}
                   disabled={isRetrying}
                 >
-                  <Text style={[styles.actionButtonText, { color: theme.colors.background }]}>
+                  <Text style={[styles.actionButtonText, { color: theme.theme.colors.background }]}>
                     {isRetrying ? 'Retrying...' : 'Retry'}
                   </Text>
                 </TouchableOpacity>
@@ -272,7 +272,7 @@ const ErrorItem: React.FC<ErrorItemProps> = ({
 
           {error.isPermanentFailure && (
             <View style={styles.permanentErrorContainer}>
-              <Text style={[styles.permanentErrorText, { color: theme.colors.error }]}>
+              <Text style={[styles.permanentErrorText, { color: theme.theme.colors.error }]}>
                 ⚠️ This error requires manual intervention
               </Text>
             </View>
@@ -349,28 +349,28 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.theme.colors.background }]}>
       {/* Error Summary Bar */}
       <TouchableOpacity
         style={[
           styles.summaryBar,
           {
-            backgroundColor: hasCriticalErrors ? theme.colors.error : theme.colors.warning,
+            backgroundColor: hasCriticalErrors ? theme.theme.colors.error : theme.theme.colors.warning,
           },
         ]}
         onPress={() => setShowDetails(!showDetails)}
         activeOpacity={0.8}
       >
         <View style={styles.summaryContent}>
-          <Text style={[styles.summaryText, { color: theme.colors.background }]}>
+          <Text style={[styles.summaryText, { color: theme.theme.colors.background }]}>
             {hasCriticalErrors ? '⚠️' : '⚡'} {filteredErrors.length} error{filteredErrors.length !== 1 ? 's' : ''}
             {hasCriticalErrors && ' (Critical)'}
           </Text>
-          <Text style={[styles.summarySubtext, { color: theme.colors.background }]}>
+          <Text style={[styles.summarySubtext, { color: theme.theme.colors.background }]}>
             Tap to {showDetails ? 'hide' : 'show'} details
           </Text>
         </View>
-        <Text style={[styles.summaryArrow, { color: theme.colors.background }]}>
+        <Text style={[styles.summaryArrow, { color: theme.theme.colors.background }]}>
           {showDetails ? '▼' : '▶'}
         </Text>
       </TouchableOpacity>
@@ -379,18 +379,18 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
       {showDetails && (
         <View style={styles.detailsContainer}>
           <View style={styles.detailsHeader}>
-            <Text style={[styles.detailsTitle, { color: theme.colors.text }]}>
+            <Text style={[styles.detailsTitle, { color: theme.theme.colors.text }]}>
               Error Details
             </Text>
             {allowManualRecovery && (
               <TouchableOpacity
                 style={[
                   styles.clearAllButton,
-                  { backgroundColor: theme.colors.error },
+                  { backgroundColor: theme.theme.colors.error },
                 ]}
                 onPress={handleClearAll}
               >
-                <Text style={[styles.clearAllText, { color: theme.colors.background }]}>
+                <Text style={[styles.clearAllText, { color: theme.theme.colors.background }]}>
                   Clear All
                 </Text>
               </TouchableOpacity>
@@ -416,7 +416,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 
           {filteredErrors.length === 0 && (
             <View style={styles.noErrorsContainer}>
-              <Text style={[styles.noErrorsText, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.noErrorsText, { color: theme.theme.colors.textSecondary }]}>
                 No active errors
               </Text>
             </View>
@@ -447,13 +447,13 @@ export const ErrorIndicator: React.FC<{ onPress?: () => void }> = ({ onPress }) 
       style={[
         styles.indicator,
         {
-          backgroundColor: criticalErrors.length > 0 ? theme.colors.error : theme.colors.warning,
+          backgroundColor: criticalErrors.length > 0 ? theme.theme.colors.error : theme.theme.colors.warning,
         },
       ]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Text style={[styles.indicatorText, { color: theme.colors.background }]}>
+      <Text style={[styles.indicatorText, { color: theme.theme.colors.background }]}>
         {criticalErrors.length > 0 ? '!' : '⚡'} {activeErrors.length}
       </Text>
     </TouchableOpacity>

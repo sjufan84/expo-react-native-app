@@ -10,12 +10,6 @@ from livekit import rtc
 from livekit.agents import (
     AutoSubscribe,
     JobContext,
-    JobProcess,
-    WorkerOptions,
-    cli,
-    llm,
-    stt,
-    tts,
     vad,
 )
 from livekit.agents.llm import ChatContext, ChatMessage
@@ -26,7 +20,6 @@ from models.schemas import (
     MessageType,
     SessionType,
     SessionConfig,
-    AgentResponse
 )
 from services.google_ai_service import GoogleAIService
 from services.speech_service import SpeechService, GoogleStreamSTT, GoogleStreamTTS
@@ -61,7 +54,7 @@ class BakeBotAgent:
             "stt_latency": [],
             "tts_latency": [],
             "llm_latency": [],
-            "total_roundtrip": []
+            "total_roundtrip": [],
         }
 
         logger.info("BakeBot agent initialized")
@@ -113,7 +106,7 @@ class BakeBotAgent:
         await self.room.connect(
             url=self.ctx.room.url,
             token=self.ctx.room.token,
-            auto_subscribe=AutoSubscribe.AUDIO_ONLY
+            auto_subscribe=AutoSubscribe.AUDIO_ONLY,
         )
 
         logger.info(f"Connected to room: {self.room.name}")
@@ -174,7 +167,7 @@ class BakeBotAgent:
         def on_agent_started_speaking():
             logger.info("Agent started speaking")
             # Calculate STT + LLM latency
-            if hasattr(self, '_speech_start_time'):
+            if hasattr(self, "_speech_start_time"):
                 stt_llm_latency = (time.time() - self._speech_start_time) * 1000
                 self._performance_metrics["stt_latency"].append(stt_llm_latency)
                 logger.info(f"STT + LLM latency: {stt_llm_latency:.2f}ms")
@@ -183,7 +176,7 @@ class BakeBotAgent:
         def on_agent_stopped_speaking():
             logger.info("Agent stopped speaking")
             # Calculate total roundtrip latency
-            if hasattr(self, '_speech_start_time'):
+            if hasattr(self, "_speech_start_time"):
                 total_latency = (time.time() - self._speech_start_time) * 1000
                 self._performance_metrics["total_roundtrip"].append(total_latency)
 
@@ -221,14 +214,14 @@ class BakeBotAgent:
             # Send welcome message
             await self._send_message(
                 content="Hi! I'm BakeBot, your virtual sous chef! How can I help you in the kitchen today?",
-                message_type="text"
+                message_type="text",
             )
 
     async def _handle_data_message(self, data: bytes, participant: rtc.RemoteParticipant):
         """Handle incoming data channel messages."""
         try:
             # Parse the message
-            message_dict = json.loads(data.decode('utf-8'))
+            message_dict = json.loads(data.decode("utf-8"))
             message = DataChannelMessage(**message_dict)
 
             logger.info(f"Received {message.type} message from {participant.identity}")
@@ -247,7 +240,7 @@ class BakeBotAgent:
 
     async def _handle_text_message(self, message: DataChannelMessage):
         """Handle text messages."""
-        content = message.payload.get('content', '')
+        content = message.payload.get("content", "")
         if not content:
             return
 
@@ -255,25 +248,25 @@ class BakeBotAgent:
         self.conversation_history.append({
             "sender": "user",
             "content": content,
-            "timestamp": message.timestamp
+            "timestamp": message.timestamp,
         })
 
         # Generate response
         response_text = await self.ai_service.generate_text_response(
-            content, self.conversation_history[:-1]
+            content, self.conversation_history[:-1],
         )
 
         # Add response to history
         self.conversation_history.append({
             "sender": "agent",
             "content": response_text,
-            "timestamp": datetime.now().timestamp()
+            "timestamp": datetime.now().timestamp(),
         })
 
         # Send response
         await self._send_message(
             content=response_text,
-            message_type="text"
+            message_type="text",
         )
 
         # If voice assistant is available, also speak the response
@@ -284,8 +277,8 @@ class BakeBotAgent:
 
     async def _handle_image_message(self, message: DataChannelMessage):
         """Handle image messages."""
-        image_data = message.payload.get('data', '')
-        caption = message.payload.get('caption', '')
+        image_data = message.payload.get("data", "")
+        caption = message.payload.get("caption", "")
 
         if not image_data:
             return
@@ -294,47 +287,47 @@ class BakeBotAgent:
         self.conversation_history.append({
             "sender": "user",
             "content": f"[Image] {caption}" if caption else "[Image]",
-            "timestamp": message.timestamp
+            "timestamp": message.timestamp,
         })
 
         # Generate response based on image
         response_text = await self.ai_service.analyze_image(
-            image_data, caption
+            image_data, caption,
         )
 
         # Add response to history
         self.conversation_history.append({
             "sender": "agent",
             "content": response_text,
-            "timestamp": datetime.now().timestamp()
+            "timestamp": datetime.now().timestamp(),
         })
 
         # Send response
         await self._send_message(
             content=response_text,
-            message_type="text"
+            message_type="text",
         )
 
     async def _handle_control_message(self, message: DataChannelMessage):
         """Handle control messages for session management."""
         payload = message.payload
 
-        if payload.get('action') == 'start_session':
-            session_type = payload.get('session_type', 'text')
-            voice_mode = payload.get('voice_mode')
+        if payload.get("action") == "start_session":
+            session_type = payload.get("session_type", "text")
+            voice_mode = payload.get("voice_mode")
 
             self.session_config = SessionConfig(
                 session_type=SessionType(session_type),
                 voice_mode=voice_mode,
-                user_id=payload.get('user_id', 'unknown'),
-                turn_detection=payload.get('turn_detection', 'auto')
+                user_id=payload.get("user_id", "unknown"),
+                turn_detection=payload.get("turn_detection", "auto"),
             )
 
             logger.info(f"Started session: {self.session_config.session_type}")
 
             # Reconfigure voice assistant based on session type
             if self.voice_assistant and self.session_config.session_type in [
-                SessionType.VOICE_PTT, SessionType.VOICE_VAD
+                SessionType.VOICE_PTT, SessionType.VOICE_VAD,
             ]:
                 await self._reconfigure_voice_assistant()
 
@@ -342,10 +335,10 @@ class BakeBotAgent:
             await self._send_message(
                 content="Session started! I'm ready to help.",
                 message_type="control",
-                payload={"status": "session_started"}
+                payload={"status": "session_started"},
             )
 
-        elif payload.get('action') == 'end_session':
+        elif payload.get("action") == "end_session":
             logger.info("Session ended")
             self.session_config = None
 
@@ -361,10 +354,10 @@ class BakeBotAgent:
             await self._send_message(
                 content="Session ended. Feel free to start a new one anytime!",
                 message_type="control",
-                payload={"status": "session_ended"}
+                payload={"status": "session_ended"},
             )
 
-        elif payload.get('action') == 'interrupt':
+        elif payload.get("action") == "interrupt":
             """Handle user interruption (barge-in)."""
             if self.voice_assistant:
                 try:
@@ -422,11 +415,11 @@ class BakeBotAgent:
             type=MessageType(message_type),
             payload=payload or {"content": content},
             timestamp=datetime.now().timestamp(),
-            message_id=str(uuid.uuid4())
+            message_id=str(uuid.uuid4()),
         )
 
         # Send via data channel
-        data = json.dumps(message.dict()).encode('utf-8')
+        data = json.dumps(message.dict()).encode("utf-8")
         await self.room.local_participant.publish_data(data, kind=rtc.DataPacketKind.RELIABLE)
 
         logger.info(f"Sent {message_type} message")
@@ -436,7 +429,7 @@ class BakeBotAgent:
         ctx = ChatContext()
         ctx.append_message(
             role="system",
-            content="You are BakeBot, a friendly and knowledgeable virtual sous chef."
+            content="You are BakeBot, a friendly and knowledgeable virtual sous chef.",
         )
         return ctx
 
@@ -453,12 +446,12 @@ class BakeBotAgent:
                     if msg.role == "user":
                         conversation_history.append({
                             "sender": "user",
-                            "content": msg.content
+                            "content": msg.content,
                         })
                     elif msg.role == "assistant":
                         conversation_history.append({
                             "sender": "agent",
-                            "content": msg.content
+                            "content": msg.content,
                         })
 
                 # Get the last user message
@@ -470,7 +463,7 @@ class BakeBotAgent:
 
                 # Generate response
                 return await self.ai_service.generate_voice_response(
-                    last_message, conversation_history[:-1]
+                    last_message, conversation_history[:-1],
                 )
 
         return BakeBotLLMAdapter(self.ai_service)

@@ -11,7 +11,6 @@ import {
 import {
   ConnectionState as AppConnectionState,
   DataChannelMessage,
-  RetryTrigger,
   SessionConfig,
   SessionSyncEvent,
   LiveKitRoomConfig,
@@ -26,13 +25,14 @@ import {
   errorRecoverySystem,
   handleError,
   addErrorListener,
-  removeErrorListener,
+  removeErrorListener
+} from '../utils/errorRecovery';
+import {
   type ErrorListener,
   type AppError,
   type RecoveryActionResult,
   type CircuitBreakerState
-} from '../utils/errorRecovery';
-import { createErrorContext } from '../types/error.types';
+} from '../types/error.types';
 
 export class LiveKitService {
   private room: Room | null = null;
@@ -46,7 +46,7 @@ export class LiveKitService {
   private onTypingEventReceived?: (typingState: TypingState) => void;
   private onRecoveryEvent?: (event: { type: string; error?: AppError; result?: RecoveryActionResult }) => void;
   private lastConnectionState: AppConnectionState = 'DISCONNECTED';
-  private errorListener: ErrorListener;
+  private errorListener!: ErrorListener;
   private activeErrorIds: Set<string> = new Set();
   private currentConnectionUrl?: string;
   private currentConnectionToken?: string;
@@ -114,13 +114,12 @@ export class LiveKitService {
       this.updateConnectionState('FAILED');
 
       // Handle error through recovery system
-      const errorContext = createErrorContext(
+      const appError = await handleError(
+        error as Error,
         'connect',
         'LiveKitService',
         { url, hasToken: !!token, reconnectAttempts: this.reconnectAttempts }
       );
-
-      const appError = await handleError(error, errorContext);
       this.activeErrorIds.add(appError.id);
 
       // Check if we should attempt recovery
@@ -230,13 +229,12 @@ export class LiveKitService {
       console.error('Failed to send data:', error);
 
       // Handle error through recovery system
-      const errorContext = createErrorContext(
+      const appError = await handleError(
+        error as Error,
         'sendData',
         'LiveKitService',
         { reliable, dataSize: data.length, roomName: this.room.name }
       );
-
-      const appError = await handleError(error, errorContext);
       this.activeErrorIds.add(appError.id);
 
       throw error;
@@ -256,7 +254,8 @@ export class LiveKitService {
       console.error('Failed to send data with retry:', error);
 
       // Handle error through recovery system
-      const errorContext = createErrorContext(
+      const appError = await handleError(
+        error as Error,
         'sendDataWithRetry',
         'LiveKitService',
         {
@@ -266,8 +265,6 @@ export class LiveKitService {
           roomName: this.room?.name
         }
       );
-
-      const appError = await handleError(error, errorContext);
       this.activeErrorIds.add(appError.id);
 
       // Notify about data channel error for retry handling
@@ -951,7 +948,7 @@ export class LiveKitService {
       },
       onCircuitBreakerStateChange: (state: CircuitBreakerState) => {
         console.log(`[LiveKitService] Circuit breaker state changed:`, state);
-        this.notifyRecoveryEvent({ type: 'circuit_breaker_change', result: undefined as any });
+        this.notifyRecoveryEvent({ type: 'circuit_breaker_change' });
       },
     };
 
@@ -1041,7 +1038,8 @@ export class LiveKitService {
       console.error('[LiveKitService] Reconnection failed:', error);
 
       // Handle reconnection error through recovery system
-      const errorContext = createErrorContext(
+      await handleError(
+        error as Error,
         'attemptReconnection',
         'LiveKitService',
         {
@@ -1050,8 +1048,6 @@ export class LiveKitService {
           hasToken: !!this.currentConnectionToken
         }
       );
-
-      await handleError(error, errorContext);
     }
   }
 

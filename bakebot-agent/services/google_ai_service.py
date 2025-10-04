@@ -1,8 +1,8 @@
+"""Service for interacting with Google AI models (LLM and Vision)."""
 import os
 import logging
 import base64
-import json
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 import google.generativeai as genai
 from PIL import Image
 import io
@@ -13,15 +13,15 @@ class GoogleAIService:
     """Service for interacting with Google AI models (LLM and Vision)."""
 
     def __init__(self):
-        self.api_key = os.getenv('GOOGLE_API_KEY')
+        self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
 
         genai.configure(api_key=self.api_key)
 
         # Initialize models
-        self.text_model = genai.GenerativeModel('gemini-1.5-flash')
-        self.vision_model = genai.GenerativeModel('gemini-1.5-pro-vision-latest')
+        self.text_model = genai.GenerativeModel("gemini-1.5-flash")
+        self.vision_model = genai.GenerativeModel("gemini-1.5-pro-vision-latest")
 
         # System prompt for BakeBot
         self.system_prompt = """You are BakeBot, a friendly and knowledgeable virtual sous chef.
@@ -47,7 +47,7 @@ class GoogleAIService:
                 for msg in conversation_history:
                     chat_history.append({
                         "role": "user" if msg.get("sender") == "user" else "model",
-                        "parts": [msg.get("content", "")]
+                        "parts": [msg.get("content", "")],
                     })
 
             # Start chat with system prompt
@@ -100,9 +100,9 @@ class GoogleAIService:
             # Ensure response isn't too long for voice
             if len(voice_response) > 500:
                 # Break into shorter, more digestible chunks
-                sentences = voice_response.split('. ')
+                sentences = voice_response.split(". ")
                 if len(sentences) > 3:
-                    voice_response = '. '.join(sentences[:3]) + ". Would you like me to continue with more details?"
+                    voice_response = ". ".join(sentences[:3]) + ". Would you like me to continue with more details?"
 
             return voice_response
 
